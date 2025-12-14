@@ -85,16 +85,13 @@ These are set once at the organization level and inherited by all apps:
 
 1. [kenocasino](https://github.com/LuckyJackpotCasino/kenocasino) ✅
 2. [blackjack21](https://github.com/LuckyJackpotCasino/blackjack21) ✅
-3. videopoker
-4. luckyslots
-5. mahjong
-6. videopokerclassic
-7. videopokerdeluxe
-8. videopokersuper
-9. wheeloffortune
-10. bingo
-11. scratchcards
-12. doubleucraps
+3. [videopokercasino](https://github.com/LuckyJackpotCasino/videopokercasino)
+4. [multihandpoker](https://github.com/LuckyJackpotCasino/multihandpoker)
+5. [keno4card](https://github.com/LuckyJackpotCasino/keno4card)
+6. [keno20card](https://github.com/LuckyJackpotCasino/keno20card)
+7. [kenosuper4x](https://github.com/LuckyJackpotCasino/kenosuper4x)
+8. [roulette](https://github.com/LuckyJackpotCasino/roulette)
+9. [vintageslots](https://github.com/LuckyJackpotCasino/vintageslots)
 
 ## 🚀 Migration from Jenkins
 
