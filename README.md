@@ -141,19 +141,19 @@ These are set once at the organization level and inherited by all apps:
 
 ## 📊 Build Integration Status
 
-**Last Updated:** December 14, 2025
+**Last Updated:** December 14, 2025 - 11:30 AM
 
 | # | App | AAB Offset | Amazon Offset | Workflow | Build Health | Actions |
 |---|-----|-----------|---------------|----------|--------------|---------|
-| 1 | [blackjack21](https://github.com/LuckyJackpotCasino/blackjack21) | 200 | 100 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/blackjack21/actions) |
-| 2 | [keno4card](https://github.com/LuckyJackpotCasino/keno4card) | 300 | 200 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/keno4card/actions) |
-| 3 | [keno20card](https://github.com/LuckyJackpotCasino/keno20card) | 400 | 300 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/keno20card/actions) |
-| 4 | [kenocasino](https://github.com/LuckyJackpotCasino/kenocasino) | 500 | 400 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/kenocasino/actions) |
-| 5 | [kenosuper4x](https://github.com/LuckyJackpotCasino/kenosuper4x) | 600 | 500 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/kenosuper4x/actions) |
-| 6 | [roulette](https://github.com/LuckyJackpotCasino/roulette) | 600 | 500 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/roulette/actions) |
-| 7 | [vintageslots](https://github.com/LuckyJackpotCasino/vintageslots) | 600 | 500 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/vintageslots/actions) |
-| 8 | [videopokercasino](https://github.com/LuckyJackpotCasino/videopokercasino) | 700 | 600 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/videopokercasino/actions) |
-| 9 | [multihandpoker](https://github.com/LuckyJackpotCasino/multihandpoker) | 700 | 600 | ✅ Deployed | 📦 Ready | [View](https://github.com/LuckyJackpotCasino/multihandpoker/actions) |
+| 1 | [blackjack21](https://github.com/LuckyJackpotCasino/blackjack21) | 200 | 100 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/blackjack21/actions/runs/20213769867) |
+| 2 | [keno4card](https://github.com/LuckyJackpotCasino/keno4card) | 300 | 200 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/keno4card/actions/runs/20213773188) |
+| 3 | [keno20card](https://github.com/LuckyJackpotCasino/keno20card) | 400 | 300 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/keno20card/actions/runs/20213774339) |
+| 4 | [kenocasino](https://github.com/LuckyJackpotCasino/kenocasino) | 500 | 400 | ✅ Deployed | ✅ **Passing** | [View](https://github.com/LuckyJackpotCasino/kenocasino/actions/runs/20213768951) |
+| 5 | [kenosuper4x](https://github.com/LuckyJackpotCasino/kenosuper4x) | 600 | 500 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/kenosuper4x/actions/runs/20213775637) |
+| 6 | [roulette](https://github.com/LuckyJackpotCasino/roulette) | 600 | 500 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/roulette/actions/runs/20213777172) |
+| 7 | [vintageslots](https://github.com/LuckyJackpotCasino/vintageslots) | 600 | 500 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/vintageslots/actions/runs/20213778459) |
+| 8 | [videopokercasino](https://github.com/LuckyJackpotCasino/videopokercasino) | 700 | 600 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/videopokercasino/actions/runs/20213770846) |
+| 9 | [multihandpoker](https://github.com/LuckyJackpotCasino/multihandpoker) | 700 | 600 | ✅ Deployed | 🚧 Building | [View](https://github.com/LuckyJackpotCasino/multihandpoker/actions/runs/20213771958) |
 
 ### Build Health Legend
 - ✅ **Passing** - All platforms building successfully
