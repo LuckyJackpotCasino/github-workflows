@@ -1,0 +1,367 @@
+name: Unity iOS Build (Automatic Signing)
+
+on:
+  workflow_call:
+    inputs:
+      unity_version:
+        required: true
+        type: string
+        description: 'Unity version to use (e.g., 2022.3.26f1)'
+      build_method:
+        required: true
+        type: string
+        description: 'Unity build method to call (e.g., RemoteBuilder.BuildiOS)'
+      repository:
+        required: true
+        type: string
+        description: 'Repository to build'
+      artifact_name:
+        required: true
+        type: string
+        description: 'Name for the artifact to upload'
+      team_id:
+        required: true
+        type: string
+        description: 'Apple Team ID'
+      app_bundle_id:
+        required: true
+        type: string
+        description: 'iOS app bundle identifier (e.g., com.luckyjackpotcasino.kenocasino)'
+    secrets:
+      GH_SSH_KEY:
+        required: false
+      APP_STORE_CONNECT_API_KEY_ID:
+        required: true
+      APP_STORE_CONNECT_API_ISSUER_ID:
+        required: true
+      APP_STORE_CONNECT_API_KEY_CONTENT:
+        required: true
+
+jobs:
+  build:
+    runs-on: self-hosted
+    timeout-minutes: 180
+    env:
+      API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+      API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+      TEAM_ID: ${{ inputs.team_id }}
+    
+    steps:
+      - name: Update Repository (Persistent Workspace)
+        run: |
+          # Configure SSH
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Check if this is first run (no .git folder)
+          if [ ! -d ".git" ]; then
+            echo "🆕 First build - cloning repository..."
+            git clone --depth 1 --recurse-submodules --shallow-submodules \
+              git@github.com:${{ inputs.repository }}.git .
+          else
+            echo "♻️  Workspace exists - updating (much faster!)..."
+            git fetch --depth 1 origin master
+            git reset --hard origin/master
+            git submodule update --init --recursive --depth 1
+          fi
+          
+          echo "✅ Repository ready (Library folder preserved for speed)"
+      
+      # No cache needed - Library folder stays on disk between builds!
+      
+      - name: Build iOS with Unity
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          JOB_NAME: ${{ github.workflow }}
+        run: |
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${{ inputs.unity_version }}/Unity.app/Contents/MacOS/Unity"
+          
+          # Fallback to any available Unity version if exact version not found
+          if [ ! -f "$UNITY_PATH" ]; then
+            UNITY_PATH=$(find /Applications/Unity/Hub/Editor -name "Unity" -type f | head -1)
+            echo "⚠️  Using Unity at: $UNITY_PATH"
+          fi
+          
+          echo "🎮 Starting Unity iOS build..."
+          echo "Build Method: ${{ inputs.build_method }}"
+          echo "Build Number: $BUILD_NUMBER"
+          
+          # Run Unity build to generate Xcode project
+          "$UNITY_PATH" \
+            -quit \
+            -batchmode \
+            -nographics \
+            -projectPath "$(pwd)" \
+            -executeMethod ${{ inputs.build_method }} \
+            -logFile /tmp/unity-build.log
+          
+          UNITY_EXIT=$?
+          
+          echo ""
+          echo "═══════════════════════════════════════════════════════════"
+          echo "Unity Build Log (last 100 lines):"
+          echo "═══════════════════════════════════════════════════════════"
+          tail -100 /tmp/unity-build.log
+          echo "═══════════════════════════════════════════════════════════"
+          echo ""
+          
+          if [ $UNITY_EXIT -ne 0 ]; then
+            echo "❌ Unity build failed with exit code: $UNITY_EXIT"
+            exit $UNITY_EXIT
+          fi
+          
+          echo "✅ Unity build command completed"
+      
+      - name: Verify iOS Project Created
+        run: |
+          echo "📂 Checking for iOS project..."
+          if [ -d "IosProjectFolder" ]; then
+            echo "✅ IosProjectFolder exists!"
+            ls -la IosProjectFolder/ | head -20
+          else
+            echo "❌ IosProjectFolder not found. Unity build failed!"
+            exit 1
+          fi
+      
+      - name: Add Export Compliance to Info.plist
+        working-directory: IosProjectFolder
+        run: |
+          echo "🔐 Adding encryption export compliance..."
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" Info.plist 2>/dev/null || \
+          /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" Info.plist
+          echo "✅ Export compliance added (None of the algorithms mentioned)"
+      
+      - name: Setup App Store Connect Authentication
+        run: |
+          mkdir -p ~/private_keys
+          echo "${{ env.API_KEY_CONTENT }}" | base64 --decode > ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
+          chmod 600 ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
+          echo "✅ App Store Connect API key configured"
+      
+      - name: Setup Fastlane & Download Certificates
+        run: |
+          # Install fastlane if not present
+          if ! command -v /Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane &> /dev/null; then
+            echo "Installing fastlane..."
+            gem install fastlane --user-install
+          fi
+          
+          # Use full path to fastlane
+          FASTLANE=/Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane
+          
+          echo "✅ Fastlane installed: $($FASTLANE --version)"
+          
+          # Create Fastfile for certificate management
+          mkdir -p fastlane
+          cat > fastlane/Fastfile << 'FASTFILE'
+          platform :ios do
+            desc "Download/create distribution certificate and provisioning profile"
+            lane :setup_signing do
+              app_store_connect_api_key(
+                key_id: ENV["API_KEY_ID"],
+                issuer_id: ENV["API_ISSUER_ID"],
+                key_filepath: ENV["API_KEY_PATH"],
+                in_house: false
+              )
+              
+              cert(
+                development: false,
+                username: "stephen@luckyjackpotcasino.com",
+                team_id: ENV["TEAM_ID"]
+              )
+              
+              sigh(
+                app_identifier: ENV["APP_BUNDLE_ID"],
+                team_id: ENV["TEAM_ID"],
+                username: "stephen@luckyjackpotcasino.com"
+              )
+            end
+          end
+          FASTFILE
+          
+          # Run fastlane to get certificates (env vars already set at job level)
+          export API_KEY_PATH="$HOME/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8"
+          export APP_BUNDLE_ID="${{ inputs.app_bundle_id }}"
+          
+          $FASTLANE ios setup_signing
+          
+          echo "✅ Distribution certificate and profile downloaded!"
+          
+          # Extract UUID from the NEW profile that Fastlane just created
+          # (ignore old profiles that might be in the repo)
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
+          
+          # Find the most recently created .mobileprovision file (the one Fastlane just made)
+          PROFILE=$(ls -t *.mobileprovision 2>/dev/null | head -1)
+          
+          if [ -n "$PROFILE" ]; then
+            UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$PROFILE"))
+            cp "$PROFILE" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
+            echo "✅ Installed $PROFILE as $UUID.mobileprovision"
+            
+            # Save UUID for export step
+            echo "PROFILE_UUID=$UUID" >> $GITHUB_ENV
+          else
+            echo "❌ No provisioning profile found!"
+            exit 1
+          fi
+          
+          # Verify certificate is in keychain
+          security find-identity -v -p codesigning | grep -i distribution || echo "⚠️  Distribution cert verification pending..."
+      
+      - name: Setup CocoaPods
+        run: |
+          if ! command -v pod &> /dev/null; then
+            echo "Installing CocoaPods..."
+            gem install cocoapods --user-install
+            export PATH="$HOME/.gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
+          fi
+          pod --version
+      
+      - name: Fix Podfile Deployment Target
+        working-directory: IosProjectFolder
+        run: |
+          echo "🔧 Fixing deployment target in Podfile..."
+          
+          # Add post_install hook to set minimum iOS version
+          if ! grep -q "post_install" Podfile; then
+            cat >> Podfile << 'PODFILE'
+          
+          post_install do |installer|
+            installer.pods_project.targets.each do |target|
+              target.build_configurations.each do |config|
+                if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 13.0
+                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+                end
+              end
+            end
+          end
+          PODFILE
+            echo "✅ Added deployment target fix to Podfile"
+          else
+            echo "Podfile already has post_install hook"
+          fi
+      
+      - name: Install CocoaPods Dependencies
+        working-directory: IosProjectFolder
+        run: |
+          export LC_ALL=en_US.UTF-8
+          
+          # Clean and update pods
+          pod deintegrate || true
+          rm -rf Pods Podfile.lock
+          
+          # Install fresh
+          pod install
+          
+          echo "✅ CocoaPods dependencies installed"
+      
+      - name: Clean Xcode Build
+        working-directory: IosProjectFolder
+        run: |
+          echo "🧹 Deep cleaning Xcode build..."
+          rm -rf build DerivedData
+          
+          xcodebuild clean \
+            -workspace Unity-iPhone.xcworkspace \
+            -scheme Unity-iPhone \
+            -configuration Release
+          
+          echo "✅ Clean complete"
+      
+      - name: Build Xcode Archive (Distribution)
+        working-directory: IosProjectFolder
+        run: |
+          echo "🔨 Building Xcode archive..."
+          
+          xcodebuild archive \
+            -workspace Unity-iPhone.xcworkspace \
+            -scheme Unity-iPhone \
+            -configuration Release \
+            -archivePath $GITHUB_WORKSPACE/Unity-iPhone.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8 \
+            -authenticationKeyID ${{ env.API_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ env.API_ISSUER_ID }} \
+            DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
+            CODE_SIGN_STYLE=Automatic \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            | tee /tmp/xcodebuild-archive.log
+          
+          XCODE_EXIT=${PIPESTATUS[0]}
+          
+          if [ $XCODE_EXIT -ne 0 ]; then
+            echo "❌ Xcode archive failed!"
+            echo "Last 100 lines of build log:"
+            tail -100 /tmp/xcodebuild-archive.log
+            exit $XCODE_EXIT
+          fi
+          
+          echo "✅ Xcode archive created for App Store distribution"
+      
+      - name: Export IPA
+        run: |
+          # Get bundle ID from Xcode project
+          BUNDLE_ID=$(grep -A 2 "PRODUCT_BUNDLE_IDENTIFIER" IosProjectFolder/Unity-iPhone.xcodeproj/project.pbxproj | grep "com\." | head -1 | sed 's/.*= \(.*\);/\1/')
+          
+          cat > ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>${{ inputs.team_id }}</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key>
+              <string>$PROFILE_UUID</string>
+            </dict>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          PLIST
+          
+          echo "📋 Export Options:"
+          echo "  Bundle ID: $BUNDLE_ID"
+          echo "  Profile UUID: $PROFILE_UUID"
+          echo "  Team ID: ${{ inputs.team_id }}"
+          
+          xcodebuild -exportArchive \
+            -archivePath Unity-iPhone.xcarchive \
+            -exportPath ./export \
+            -exportOptionsPlist ExportOptions.plist
+          
+          echo "✅ IPA exported"
+          ls -lh export/*.ipa
+      
+      - name: Upload to TestFlight
+        run: |
+          IPA=$(find export -name "*.ipa" | head -1)
+          echo "📦 Uploading: $IPA"
+          
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey ${{ env.API_KEY_ID }} \
+            --apiIssuer ${{ env.API_ISSUER_ID }}
+          
+          echo "✅ Uploaded to TestFlight!"
+          echo "🎉 Build will appear in App Store Connect in 5-10 minutes"
+      
+      - name: Cleanup Unity Backup Folders
+        if: always()
+        run: |
+          echo "🧹 Cleaning up..."
+          rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
+          rm -f ~/private_keys/AuthKey_*.p8
+          echo "✅ Cleanup complete"
+

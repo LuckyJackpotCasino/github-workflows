@@ -1,0 +1,167 @@
+name: Unity Android Build
+
+on:
+  workflow_call:
+    inputs:
+      unity_version:
+        required: true
+        type: string
+        description: 'Unity version to use (e.g., 2022.3.26f1)'
+      build_method:
+        required: true
+        type: string
+        description: 'Unity build method to call (e.g., RemoteBuilder.BuildGooglePlay)'
+      build_type:
+        required: true
+        type: string
+        description: 'Build type: apk or aab'
+      build_number_offset:
+        required: false
+        type: string
+        default: '0'
+        description: 'Build number offset for versioning'
+      repository:
+        required: true
+        type: string
+        description: 'Repository to build (e.g., stephenmsullivan/videopokercasino)'
+      artifact_name:
+        required: true
+        type: string
+        description: 'Name for the artifact to upload'
+      package_name:
+        required: false
+        type: string
+        description: 'Android package name (required for AAB Google Play upload)'
+      upload_artifact:
+        required: false
+        type: boolean
+        default: false
+        description: 'Whether to upload build as GitHub artifact'
+    secrets:
+      ANDROID_KEYSTORE_PASSWORD:
+        required: true
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON:
+        required: false
+
+jobs:
+  build:
+    runs-on: self-hosted  # Using self-hosted runner for unlimited builds and faster execution
+    timeout-minutes: 120
+    
+    steps:
+      - name: Update Repository (Persistent Workspace)
+        run: |
+          # Configure SSH
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Check if this is first run (no .git folder)
+          if [ ! -d ".git" ]; then
+            echo "🆕 First build - cloning repository..."
+            git clone --depth 1 --recurse-submodules --shallow-submodules \
+              git@github.com:${{ inputs.repository }}.git .
+          else
+            echo "♻️  Workspace exists - updating (much faster!)..."
+            git fetch --depth 1 origin master
+            git reset --hard origin/master
+            git submodule update --init --recursive --depth 1
+          fi
+          
+          echo "✅ Repository ready (Library folder preserved for speed)"
+      
+      # No cache needed - Library folder stays on disk between builds!
+      
+      - name: Clean Previous Builds
+        run: |
+          echo "🧹 Removing old build files..."
+          rm -f *.apk *.aab
+          echo "✅ Clean workspace ready for new build"
+      
+      - name: Calculate Version Code  
+        id: version
+        run: |
+          # Simple offset method (industry standard)
+          VERSION_CODE=$((${{ github.run_number }} + ${{ inputs.build_number_offset }}))
+          
+          echo "📱 Version Code: $VERSION_CODE"
+          echo "   GitHub Run: ${{ github.run_number }}"
+          echo "   Offset: ${{ inputs.build_number_offset }}"
+          
+          echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
+      
+      - name: Extract Game Name
+        id: game_name
+        run: |
+          # Extract repo name from "org/repo" format
+          REPO_NAME="${{ inputs.repository }}"
+          GAME_NAME="${REPO_NAME##*/}"
+          echo "game_name=$GAME_NAME" >> $GITHUB_OUTPUT
+          echo "📦 Game Name: $GAME_NAME"
+      
+      - name: Build Android
+        run: |
+          echo "📱 Building with Version Code: ${{ steps.version.outputs.version_code }}"
+          echo "📦 Game Name: ${{ steps.game_name.outputs.game_name }}"
+          
+          # Find Unity installation
+          UNITY_PATH="/Applications/Unity/Hub/Editor/${{ inputs.unity_version }}/Unity.app/Contents/MacOS/Unity"
+          
+          # Fallback to any available Unity version if exact version not found
+          if [ ! -f "$UNITY_PATH" ]; then
+            UNITY_PATH=$(find /Applications/Unity/Hub/Editor -name "Unity" -type f | head -1)
+            echo "⚠️  Using Unity at: $UNITY_PATH"
+          fi
+          
+          # Run Unity build (reads version from env vars BUILD_NUMBER + BUILD_NUMBER_OFFSET)
+          "$UNITY_PATH" \
+            -quit \
+            -batchmode \
+            -nographics \
+            -projectPath "$(pwd)" \
+            -executeMethod ${{ inputs.build_method }} \
+            -logFile /tmp/unity-build.log
+          
+          echo "✅ Unity build complete: ${{ steps.game_name.outputs.game_name }}${{ steps.version.outputs.version_code }}.${{ inputs.build_type }}"
+        env:
+          AndroidKeystorePassword: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          AndroidAppBundle: ${{ inputs.build_type }}
+          BUILD_NUMBER: ${{ steps.version.outputs.version_code }}
+          BUILD_NUMBER_OFFSET: '0'
+          JOB_NAME: ${{ steps.game_name.outputs.game_name }}
+      
+      - name: Cleanup Unity Backup Folders
+        run: |
+          echo "🧹 Cleaning up Unity backup folders..."
+          rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
+          echo "✅ Cleanup complete"
+      
+      - name: Upload to Google Play
+        if: inputs.build_type == 'aab'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ inputs.package_name }}
+          releaseFiles: '*.aab'
+          track: internal
+          status: completed
+          inAppUpdatePriority: 2
+      
+      - name: Upload Build Artifacts
+        if: inputs.upload_artifact == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ inputs.build_type == 'apk' && '*.apk' || '*.aab' }}
+          if-no-files-found: error
+          retention-days: 7
+      
+      - name: Upload Unity Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}-unity-log
+          path: /tmp/unity-build.log
+          if-no-files-found: warn
+          retention-days: 7
+
