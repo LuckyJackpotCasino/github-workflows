@@ -45,9 +45,16 @@ echo -e "${GREEN}App:${NC} $APP"
 echo -e "${GREEN}Platforms:${NC} $PLATFORMS"
 echo ""
 
+# Map app names to workflow filenames
+case $APP in
+  "kenocasino") WORKFLOW="keno-builds.yml" ;;
+  "blackjack21") WORKFLOW="blackjack-builds.yml" ;;
+  *) WORKFLOW="${APP}-builds.yml" ;;
+esac
+
 # Trigger the build
 echo "🚀 Triggering build..."
-gh workflow run ${APP}-builds.yml \
+gh workflow run $WORKFLOW \
   --repo LuckyJackpotCasino/$APP \
   --field build_platforms=$PLATFORMS
 

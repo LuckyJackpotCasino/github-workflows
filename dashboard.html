@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lucky Jackpot Casino - Build Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card .number {
+            font-size: 36px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .stat-card .label {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .stat-card.success .number { color: #10b981; }
+        .stat-card.building .number { color: #3b82f6; }
+        .stat-card.failed .number { color: #ef4444; }
+        .stat-card.pending .number { color: #6b7280; }
+        
+        .dashboard {
+            padding: 30px;
+        }
+        
+        .build-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .build-table thead {
+            background: #f8f9fa;
+        }
+        
+        .build-table th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        
+        .build-table td {
+            padding: 16px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .build-table tbody tr:hover {
+            background: #f9fafb;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            gap: 6px;
+        }
+        
+        .status-badge.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-badge.building {
+            background: #dbeafe;
+            color: #1e40af;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-badge.failed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-badge.pending {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        
+        .app-name {
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .offset-info {
+            font-size: 12px;
+            color: #6b7280;
+        }
+        
+        .last-updated {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-left: 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .refresh-btn:hover {
+            background: #5568d3 !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .refresh-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+        }
+        
+        /* Header refresh button specific styles */
+        .header .refresh-btn {
+            background: white !important;
+            color: #667eea !important;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .header .refresh-btn:hover {
+            background: rgba(255, 255, 255, 0.95) !important;
+            color: #5568d3 !important;
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(255, 255, 255, 0.3);
+        }
+        
+        .header .refresh-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .link-btn {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .link-btn:hover {
+            text-decoration: underline;
+        }
+
+        .trigger-section {
+            margin: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            border-radius: 12px;
+            border: 2px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .trigger-section h3 {
+            margin: 0 0 15px 0;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .trigger-controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .trigger-btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .trigger-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+        }
+
+        .trigger-btn:active {
+            transform: translateY(0);
+        }
+
+        .trigger-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .trigger-all {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .trigger-ios {
+            background: linear-gradient(135deg, #007aff 0%, #0051d5 100%);
+        }
+
+        .trigger-android {
+            background: linear-gradient(135deg, #3ddc84 0%, #1a8754 100%);
+        }
+
+        .trigger-amazon {
+            background: linear-gradient(135deg, #ff9900 0%, #cc7a00 100%);
+        }
+
+        .trigger-single {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎰 Lucky Jackpot Casino</h1>
+            <p>Build Dashboard - Real-time CI/CD Status</p>
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+                    <span style="opacity: 0.9;">Last updated: <span id="last-updated-top">Loading...</span></span>
+                    <button class="refresh-btn" onclick="loadData()">
+                        🔄 Refresh Now
+                    </button>
+                    <span style="opacity: 0.8; font-size: 12px;">Auto-refreshes every 30s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Trigger Controls -->
+        <div class="trigger-section">
+            <h3>🚀 Bulk Build Triggers</h3>
+            <div class="trigger-controls">
+                <button onclick="triggerBulk('all')" class="trigger-btn trigger-all">
+                    🎮 All Apps - All Platforms
+                </button>
+                <button onclick="triggerBulk('ios')" class="trigger-btn trigger-ios">
+                    🍎 All Apps - iOS Only
+                </button>
+                <button onclick="triggerBulk('aab')" class="trigger-btn trigger-android">
+                    🤖 All Apps - Google Play
+                </button>
+                <button onclick="triggerBulk('amazon')" class="trigger-btn trigger-amazon">
+                    📦 All Apps - Amazon
+                </button>
+            </div>
+        </div>
+        
+        <div class="stats" id="stats">
+            <div class="stat-card success">
+                <div class="number" id="stat-success">0</div>
+                <div class="label">✅ Passing</div>
+            </div>
+            <div class="stat-card building">
+                <div class="number" id="stat-building">0</div>
+                <div class="label">🚧 Building</div>
+            </div>
+            <div class="stat-card failed">
+                <div class="number" id="stat-failed">0</div>
+                <div class="label">❌ Failed</div>
+            </div>
+            <div class="stat-card pending">
+                <div class="number" id="stat-pending">27</div>
+                <div class="label">📦 Pending</div>
+            </div>
+        </div>
+        
+        <div class="dashboard">
+            <table class="build-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>App</th>
+                        <th>Offsets</th>
+                        <th>iOS Build</th>
+                        <th>AAB Build</th>
+                        <th>Amazon Build</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="builds-tbody">
+                    <!-- Data loaded via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="last-updated" style="padding: 15px; font-size: 12px; color: #9ca3af;">
+            <small>Dashboard will automatically refresh every 30 seconds to show latest build status</small>
+        </div>
+    </div>
+
+    <script>
+        const apps = [
+            { name: 'blackjack21', aabOffset: 200, amazonOffset: 100 },
+            { name: 'keno4card', aabOffset: 300, amazonOffset: 200 },
+            { name: 'keno20card', aabOffset: 400, amazonOffset: 300 },
+            { name: 'kenocasino', aabOffset: 500, amazonOffset: 400 },
+            { name: 'kenosuper4x', aabOffset: 600, amazonOffset: 500 },
+            { name: 'roulette', aabOffset: 600, amazonOffset: 500 },
+            { name: 'vintageslots', aabOffset: 600, amazonOffset: 500 },
+            { name: 'videopokercasino', aabOffset: 700, amazonOffset: 600 },
+            { name: 'multihandpoker', aabOffset: 700, amazonOffset: 600 }
+        ];
+
+        async function getBuildStatus(app) {
+            try {
+                // This requires a local server to fetch GitHub API
+                const response = await fetch(`http://localhost:3000/status/${app}`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                // Fallback to mock data for now
+                return {
+                    ios: 'pending',
+                    aab: 'pending',
+                    amazon: 'pending',
+                    iosRun: null,
+                    aabRun: null,
+                    amazonRun: null
+                };
+            }
+        }
+
+        function getStatusBadge(status, runId) {
+            const badges = {
+                'success': '<span class="status-badge success">✅ Success</span>',
+                'building': '<span class="status-badge building">🚧 Building</span>',
+                'in_progress': '<span class="status-badge building">🚧 Building</span>',
+                'queued': '<span class="status-badge building">⏳ Queued</span>',
+                'failed': '<span class="status-badge failed">❌ Failed</span>',
+                'failure': '<span class="status-badge failed">❌ Failed</span>',
+                'cancelled': '<span class="status-badge pending">⊘ Cancelled</span>',
+                'skipped': '<span class="status-badge pending">⏭️ Skipped</span>',
+                'pending': '<span class="status-badge pending">– Not Run</span>',
+                'unknown': '<span class="status-badge pending">? Unknown</span>'
+            };
+            return badges[status] || badges['pending'];
+        }
+
+        async function loadData() {
+            const tbody = document.getElementById('builds-tbody');
+            const isFirstLoad = tbody.children.length === 0;
+            
+            let stats = { success: 0, building: 0, failed: 0, pending: 0 };
+            
+            // On first load, clear the table
+            if (isFirstLoad) {
+                tbody.innerHTML = '';
+            }
+            
+            for (let i = 0; i < apps.length; i++) {
+                const app = apps[i];
+                const status = await getBuildStatus(app.name);
+                
+                // Update stats
+                [status.ios, status.aab, status.amazon].forEach(s => {
+                    if (s === 'success') stats.success++;
+                    else if (s === 'building' || s === 'in_progress' || s === 'queued') stats.building++;
+                    else if (s === 'failed' || s === 'failure') stats.failed++;
+                    else stats.pending++;
+                });
+                
+                if (isFirstLoad) {
+                    // Create new row on first load
+                    const row = document.createElement('tr');
+                    row.setAttribute('data-app', app.name);
+                    row.innerHTML = `
+                        <td>${i + 1}</td>
+                        <td>
+                            <div class="app-name">${app.name}</div>
+                        </td>
+                        <td><span class="offset-info">${app.aabOffset} / ${app.amazonOffset}</span></td>
+                        <td class="status-ios">${getStatusBadge(status.ios, status.iosRun)}</td>
+                        <td class="status-aab">${getStatusBadge(status.aab, status.aabRun)}</td>
+                        <td class="status-amazon">${getStatusBadge(status.amazon, status.amazonRun)}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button onclick="triggerBuild('${app.name}', 'all')" class="trigger-btn trigger-single" title="Build all platforms">🚀</button>
+                                <button onclick="triggerBuild('${app.name}', 'ios')" class="trigger-btn trigger-single trigger-ios" title="Build iOS only">🍎</button>
+                                <button onclick="triggerBuild('${app.name}', 'aab')" class="trigger-btn trigger-single trigger-android" title="Build Google Play">🤖</button>
+                                <button onclick="triggerBuild('${app.name}', 'amazon')" class="trigger-btn trigger-single trigger-amazon" title="Build Amazon">📦</button>
+                                <a href="https://github.com/LuckyJackpotCasino/${app.name}/actions" class="link-btn" target="_blank">View →</a>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                } else {
+                    // Update existing row status cells only
+                    const row = tbody.querySelector(`tr[data-app="${app.name}"]`);
+                    if (row) {
+                        const iosCell = row.querySelector('.status-ios');
+                        const aabCell = row.querySelector('.status-aab');
+                        const amazonCell = row.querySelector('.status-amazon');
+                        
+                        if (iosCell) iosCell.innerHTML = getStatusBadge(status.ios, status.iosRun);
+                        if (aabCell) aabCell.innerHTML = getStatusBadge(status.aab, status.aabRun);
+                        if (amazonCell) amazonCell.innerHTML = getStatusBadge(status.amazon, status.amazonRun);
+                    }
+                }
+            }
+            
+            // Update stats
+            document.getElementById('stat-success').textContent = stats.success;
+            document.getElementById('stat-building').textContent = stats.building;
+            document.getElementById('stat-failed').textContent = stats.failed;
+            document.getElementById('stat-pending').textContent = stats.pending;
+            
+            const timeStr = new Date().toLocaleTimeString();
+            document.getElementById('last-updated-top').textContent = timeStr;
+        }
+
+        // Load data on page load
+        loadData();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadData, 30000);
+
+        // Trigger functions
+        async function triggerBuild(app, platform) {
+            if (!confirm(`Trigger ${platform.toUpperCase()} build for ${app}?`)) {
+                return;
+            }
+
+            const btn = event.target;
+            btn.disabled = true;
+            const originalText = btn.textContent;
+            btn.textContent = '⏳';
+
+            try {
+                const response = await fetch(`http://localhost:3000/trigger/${app}/${platform}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Build triggered for ${app} (${platform})!`);
+                    setTimeout(loadData, 3000); // Refresh after 3 seconds
+                } else {
+                    alert(`❌ Failed to trigger build: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        async function triggerBulk(platform) {
+            const platformName = platform === 'all' ? 'All Platforms' : platform.toUpperCase();
+            if (!confirm(`Trigger ${platformName} builds for ALL ${apps.length} apps? This will queue ${apps.length} builds!`)) {
+                return;
+            }
+
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '⏳ Triggering...';
+
+            try {
+                const response = await fetch(`http://localhost:3000/trigger-bulk/${platform}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Triggered ${result.count} builds!\n\n${result.apps.join('\n')}`);
+                    setTimeout(loadData, 3000); // Refresh after 3 seconds
+                } else {
+                    alert(`❌ Failed to trigger builds: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+    </script>
+</body>
+</html>

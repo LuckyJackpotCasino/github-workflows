@@ -62,7 +62,14 @@ BUILD_IDS=()
 for APP in "${APPS[@]}"; do
   echo -e "${BLUE}Triggering:${NC} $APP..."
   
-  gh workflow run ${APP}-builds.yml \
+  # Map app names to workflow filenames
+  case $APP in
+    "kenocasino") WORKFLOW="keno-builds.yml" ;;
+    "blackjack21") WORKFLOW="blackjack-builds.yml" ;;
+    *) WORKFLOW="${APP}-builds.yml" ;;
+  esac
+  
+  gh workflow run $WORKFLOW \
     --repo LuckyJackpotCasino/$APP \
     --field build_platforms=$PLATFORMS 2>&1
   
