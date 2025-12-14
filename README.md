@@ -17,9 +17,13 @@ github-workflows/
 │   ├── unity-android-build.yml          # Reusable Android workflow
 │   └── unity-ios-build-auto-signing.yml # Reusable iOS workflow
 ├── scripts/
-│   ├── build-all-apps.sh                # Batch build all 12 apps
+│   ├── build-all-apps.sh                # Batch build all apps
 │   └── build-single-app.sh              # Build specific app
-└── README.md
+├── dashboard.html                        # Build dashboard UI
+├── server.py                             # Dashboard backend server
+├── start-dashboard.sh                    # Quick start script
+├── DASHBOARD_README.md                   # Dashboard documentation
+└── README.md                             # This file
 ```
 
 ## 📁 Workflows
@@ -240,7 +244,17 @@ These workflows replace the previous Jenkins CI/CD setup with:
 
 ## 📖 Documentation
 
-See [BuildBot1000](https://github.com/LuckyJackpotCasino/buildbot1000) for full migration documentation.
+### Migration Documentation
+- [JENKINS_TO_GITHUB_ACTIONS_MIGRATION.md](./JENKINS_TO_GITHUB_ACTIONS_MIGRATION.md) - Complete migration guide
+- [REPLICATE_TO_OTHER_APPS.md](./REPLICATE_TO_OTHER_APPS.md) - Steps to replicate workflows to new apps
+- [TRIGGER_AND_VERIFY.md](./TRIGGER_AND_VERIFY.md) - Manual build trigger and verification guide
+
+### Build Dashboard
+- [DASHBOARD_README.md](./DASHBOARD_README.md) - **Live build monitoring and trigger dashboard**
+  - Real-time status for all 9 apps (iOS, AAB, Amazon)
+  - One-click build triggers (bulk or individual)
+  - Auto-refreshes every 30 seconds
+  - Run on any machine: `./start-dashboard.sh` then open http://localhost:3000
 
 ## 🛠️ Updating Workflows
 
@@ -266,5 +280,5 @@ uses: LuckyJackpotCasino/github-workflows/.github/workflows/unity-android-build.
 
 ---
 
-**BuildBot 9000** 🤖 - Your friendly CI/CD migration assistant
+**GitHub Actions Migration** 🚀 - Centralized CI/CD workflows for Lucky Jackpot Casino
 
