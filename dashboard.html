@@ -391,7 +391,7 @@
         async function getBuildStatus(app) {
             try {
                 // This requires a local server to fetch GitHub API
-                const response = await fetch(`http://localhost:3000/status/${app}`);
+                const response = await fetch(`http://localhost:9000/status/${app}`);
                 const data = await response.json();
                 return data;
             } catch (error) {
@@ -513,7 +513,7 @@
             btn.textContent = '⏳';
 
             try {
-                const response = await fetch(`http://localhost:3000/trigger/${app}/${platform}`, {
+                const response = await fetch(`http://localhost:9000/trigger/${app}/${platform}`, {
                     method: 'POST'
                 });
                 const result = await response.json();
@@ -544,7 +544,7 @@
             btn.textContent = '⏳ Triggering...';
 
             try {
-                const response = await fetch(`http://localhost:3000/trigger-bulk/${platform}`, {
+                const response = await fetch(`http://localhost:9000/trigger-bulk/${platform}`, {
                     method: 'POST'
                 });
                 const result = await response.json();
