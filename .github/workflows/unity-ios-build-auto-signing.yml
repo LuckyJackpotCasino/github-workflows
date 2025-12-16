@@ -191,6 +191,17 @@ jobs:
           
           echo "✅ CocoaPods dependencies installed"
       
+      - name: Configure Manual Signing in Project
+        working-directory: IosProjectFolder
+        run: |
+          echo "🔧 Configuring project for manual signing..."
+          
+          # Unity generates project with automatic signing
+          # We need to change it to manual for CI builds
+          sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' Unity-iPhone.xcodeproj/project.pbxproj
+          
+          echo "✅ Project configured for manual signing"
+      
       - name: Clean Xcode Build
         working-directory: IosProjectFolder
         run: |
