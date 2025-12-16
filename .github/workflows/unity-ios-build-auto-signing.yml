@@ -275,17 +275,16 @@ jobs:
           # Clean DerivedData to avoid stale signing state
           rm -rf ~/Library/Developer/Xcode/DerivedData/Unity-iPhone-*
           
+          # Use manual signing with Distribution certificate and App Store profile
           xcodebuild archive \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \
             -configuration Release \
             -archivePath $GITHUB_WORKSPACE/Unity-iPhone.xcarchive \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8 \
-            -authenticationKeyID ${{ env.API_KEY_ID }} \
-            -authenticationKeyIssuerID ${{ env.API_ISSUER_ID }} \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | tee /tmp/xcodebuild-archive.log
           
