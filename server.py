@@ -9,7 +9,7 @@ import time
 from urllib.parse import urlparse
 from datetime import datetime
 
-PORT = 3000
+PORT = 9000
 
 # Cache for build status
 cache = {}
@@ -258,8 +258,8 @@ if __name__ == '__main__':
 ║   🎰 Lucky Jackpot Casino - Build Dashboard Server       ║
 ╠═══════════════════════════════════════════════════════════╣
 ║                                                            ║
-║   Dashboard: http://localhost:3000                        ║
-║   API:       http://localhost:3000/api/status             ║
+║   Dashboard: http://localhost:9000                        ║
+║   API:       http://localhost:9000/api/status             ║
 ║                                                            ║
 ║   Press Ctrl+C to stop                                    ║
 ║                                                            ║
