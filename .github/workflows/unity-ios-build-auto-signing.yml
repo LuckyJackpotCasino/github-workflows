@@ -36,6 +36,10 @@ on:
         required: true
       APP_STORE_CONNECT_API_KEY_CONTENT:
         required: true
+      IOS_DISTRIBUTION_CERT_P12:
+        required: true
+      IOS_DISTRIBUTION_CERT_PASSWORD:
+        required: true
 
 jobs:
   build:
@@ -133,6 +137,31 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" Info.plist
           echo "✅ Export compliance added (None of the algorithms mentioned)"
       
+      - name: Setup CI Keychain
+        run: |
+          # Create a temporary keychain for this build
+          KEYCHAIN_PATH="$RUNNER_TEMP/ci.keychain"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          
+          echo "🔐 Creating CI keychain..."
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g)
+          security default-keychain -s "$KEYCHAIN_PATH"
+          
+          echo "📥 Importing Distribution certificate..."
+          echo "${{ secrets.IOS_DISTRIBUTION_CERT_P12 }}" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN_PATH" -P "${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          rm "$RUNNER_TEMP/cert.p12"
+          
+          echo "✅ CI keychain ready with Distribution certificate"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          
+          # Save keychain path for cleanup
+          echo "CI_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+      
       - name: Setup App Store Connect Authentication
         run: |
           mkdir -p ~/private_keys
@@ -140,7 +169,7 @@ jobs:
           chmod 600 ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
           echo "✅ App Store Connect API key configured"
       
-      - name: Setup Fastlane & Download Certificates
+      - name: Download Provisioning Profile
         run: |
           # Install fastlane if not present
           if ! command -v /Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane &> /dev/null; then
@@ -148,64 +177,46 @@ jobs:
             gem install fastlane --user-install
           fi
           
-          # Use full path to fastlane
           FASTLANE=/Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane
           
-          echo "✅ Fastlane installed: $($FASTLANE --version)"
-          
-          # Create Fastfile for provisioning profile download
+          # Create simple Fastfile to download profile only
           mkdir -p fastlane
           cat > fastlane/Fastfile << 'FASTFILE'
           platform :ios do
-            desc "Download provisioning profile (use existing certificates)"
-            lane :setup_signing do
+            lane :get_profile do
               app_store_connect_api_key(
                 key_id: ENV["API_KEY_ID"],
                 issuer_id: ENV["API_ISSUER_ID"],
-                key_filepath: ENV["API_KEY_PATH"],
-                in_house: false
+                key_filepath: ENV["API_KEY_PATH"]
               )
               
-              # Download App Store provisioning profile that matches existing certificate
               sigh(
                 app_identifier: ENV["APP_BUNDLE_ID"],
                 team_id: ENV["TEAM_ID"],
-                username: "stephen@luckyjackpotcasino.com",
-                skip_certificate_verification: true
+                skip_certificate_verification: true,
+                readonly: true
               )
             end
           end
           FASTFILE
           
-          # Run fastlane to get certificates (env vars already set at job level)
           export API_KEY_PATH="$HOME/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8"
           export APP_BUNDLE_ID="${{ inputs.app_bundle_id }}"
           
-          $FASTLANE ios setup_signing
+          $FASTLANE ios get_profile
           
-          echo "✅ Distribution certificate and profile downloaded!"
-          
-          # Extract UUID from the NEW profile that Fastlane just created
-          # (ignore old profiles that might be in the repo)
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
-          
-          # Find the most recently created .mobileprovision file (the one Fastlane just made)
+          # Install profile
           PROFILE=$(ls -t *.mobileprovision 2>/dev/null | head -1)
-          
           if [ -n "$PROFILE" ]; then
             UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< $(security cms -D -i "$PROFILE"))
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles/
             cp "$PROFILE" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
-            echo "✅ Installed $PROFILE as $UUID.mobileprovision"
-            
-            # Save UUID for export step
+            echo "✅ Installed provisioning profile: $UUID"
             echo "PROFILE_UUID=$UUID" >> $GITHUB_ENV
           else
             echo "❌ No provisioning profile found!"
             exit 1
           fi
-          
-          # Verify certificate is in keychain
-          security find-identity -v -p codesigning | grep -i distribution || echo "⚠️  Distribution cert verification pending..."
       
       - name: Setup CocoaPods
         run: |
@@ -366,11 +377,24 @@ jobs:
           echo "✅ Uploaded to TestFlight!"
           echo "🎉 Build will appear in App Store Connect in 5-10 minutes"
       
-      - name: Cleanup Unity Backup Folders
+      - name: Cleanup
         if: always()
         run: |
           echo "🧹 Cleaning up..."
+          
+          # Delete CI keychain
+          if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$CI_KEYCHAIN_PATH" || true
+            echo "✅ CI keychain deleted"
+          fi
+          
+          # Reset default keychain
+          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db
+          security default-keychain -s ~/Library/Keychains/login.keychain-db
+          
+          # Clean up other files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
           rm -f ~/private_keys/AuthKey_*.p8
+          
           echo "✅ Cleanup complete"
 
