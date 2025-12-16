@@ -194,7 +194,8 @@ jobs:
                 app_identifier: ENV["APP_BUNDLE_ID"],
                 team_id: ENV["TEAM_ID"],
                 skip_certificate_verification: true,
-                readonly: true
+                readonly: false,
+                force: true
               )
             end
           end
