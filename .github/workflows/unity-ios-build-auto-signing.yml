@@ -258,13 +258,6 @@ jobs:
           
           echo "✅ CocoaPods dependencies installed"
       
-      - name: Unlock Keychain for Signing
-        run: |
-          # Unlock the login keychain to ensure codesign can access certificates
-          # On self-hosted runners, the keychain may lock between builds
-          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db || true
-          echo "✅ Keychain unlocked for code signing"
-      
       - name: Clean Xcode Build
         working-directory: IosProjectFolder
         run: |
@@ -281,6 +274,15 @@ jobs:
       - name: Build Xcode Archive (Distribution)
         working-directory: IosProjectFolder
         run: |
+          echo "🔐 Preparing keychain for code signing..."
+          # Unlock keychain immediately before archive to prevent timeout
+          # Set a long timeout (6 hours) to cover the entire build
+          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db
+          security set-keychain-settings -t 21600 ~/Library/Keychains/login.keychain-db
+          # Ensure login keychain is in the search path
+          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db
+          echo "✅ Keychain prepared for signing"
+          
           echo "🔨 Building Xcode archive..."
           
           xcodebuild archive \
