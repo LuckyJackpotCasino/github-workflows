@@ -157,7 +157,7 @@ jobs:
           mkdir -p fastlane
           cat > fastlane/Fastfile << 'FASTFILE'
           platform :ios do
-            desc "Download/create distribution certificate and provisioning profile"
+            desc "Download/create development and distribution certificates and provisioning profiles"
             lane :setup_signing do
               app_store_connect_api_key(
                 key_id: ENV["API_KEY_ID"],
@@ -166,12 +166,21 @@ jobs:
                 in_house: false
               )
               
+              # Create/download Development certificate (needed for Xcode automatic signing)
+              cert(
+                development: true,
+                username: "stephen@luckyjackpotcasino.com",
+                team_id: ENV["TEAM_ID"]
+              )
+              
+              # Create/download Distribution certificate (for App Store)
               cert(
                 development: false,
                 username: "stephen@luckyjackpotcasino.com",
                 team_id: ENV["TEAM_ID"]
               )
               
+              # Download App Store provisioning profile
               sigh(
                 app_identifier: ENV["APP_BUNDLE_ID"],
                 team_id: ENV["TEAM_ID"],
@@ -276,6 +285,22 @@ jobs:
         run: |
           echo "🔨 Building Xcode archive..."
           
+          # Unlock keychain to allow codesign access
+          echo "🔓 Unlocking keychain..."
+          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db || true
+          security set-keychain-settings -lut 21600 ~/Library/Keychains/login.keychain-db
+          security list-keychains -s ~/Library/Keychains/login.keychain-db
+          
+          # Set keychain to allow codesign access without prompting
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db || true
+          
+          # Verify we have the Distribution certificate
+          echo "📜 Available signing identities:"
+          security find-identity -v -p codesigning
+          
+          # Clean DerivedData to avoid stale signing state
+          rm -rf ~/Library/Developer/Xcode/DerivedData/Unity-iPhone-*
+          
           xcodebuild archive \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \
@@ -287,6 +312,7 @@ jobs:
             -authenticationKeyIssuerID ${{ env.API_ISSUER_ID }} \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
             CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | tee /tmp/xcodebuild-archive.log
           
