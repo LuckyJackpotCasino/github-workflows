@@ -169,13 +169,17 @@ jobs:
               cert(
                 development: false,
                 username: "stephen@luckyjackpotcasino.com",
-                team_id: ENV["TEAM_ID"]
+                team_id: ENV["TEAM_ID"],
+                platform: "ios"
               )
               
               sigh(
                 app_identifier: ENV["APP_BUNDLE_ID"],
                 team_id: ENV["TEAM_ID"],
-                username: "stephen@luckyjackpotcasino.com"
+                username: "stephen@luckyjackpotcasino.com",
+                adhoc: false,
+                readonly: false,
+                platform: "ios"
               )
             end
           end
@@ -286,7 +290,8 @@ jobs:
             -authenticationKeyID ${{ env.API_KEY_ID }} \
             -authenticationKeyIssuerID ${{ env.API_ISSUER_ID }} \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | tee /tmp/xcodebuild-archive.log
           
