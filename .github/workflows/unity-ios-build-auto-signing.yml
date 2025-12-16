@@ -272,19 +272,6 @@ jobs:
         run: |
           echo "🔨 Building Xcode archive..."
           
-          # Unlock keychain to allow codesign access
-          echo "🔓 Unlocking keychain..."
-          security unlock-keychain -p "" ~/Library/Keychains/login.keychain-db || true
-          security set-keychain-settings -lut 21600 ~/Library/Keychains/login.keychain-db
-          security list-keychains -s ~/Library/Keychains/login.keychain-db
-          
-          # Set keychain to allow codesign access without prompting
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" ~/Library/Keychains/login.keychain-db || true
-          
-          # Verify we have the Distribution certificate
-          echo "📜 Available signing identities:"
-          security find-identity -v -p codesigning
-          
           # Clean DerivedData to avoid stale signing state
           rm -rf ~/Library/Developer/Xcode/DerivedData/Unity-iPhone-*
           
