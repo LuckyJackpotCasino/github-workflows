@@ -153,11 +153,11 @@ jobs:
           
           echo "✅ Fastlane installed: $($FASTLANE --version)"
           
-          # Create Fastfile for certificate management
+          # Create Fastfile for provisioning profile download
           mkdir -p fastlane
           cat > fastlane/Fastfile << 'FASTFILE'
           platform :ios do
-            desc "Download/create development and distribution certificates and provisioning profiles"
+            desc "Download provisioning profile (use existing certificates)"
             lane :setup_signing do
               app_store_connect_api_key(
                 key_id: ENV["API_KEY_ID"],
@@ -166,25 +166,12 @@ jobs:
                 in_house: false
               )
               
-              # Create/download Development certificate (needed for Xcode automatic signing)
-              cert(
-                development: true,
-                username: "stephen@luckyjackpotcasino.com",
-                team_id: ENV["TEAM_ID"]
-              )
-              
-              # Create/download Distribution certificate (for App Store)
-              cert(
-                development: false,
-                username: "stephen@luckyjackpotcasino.com",
-                team_id: ENV["TEAM_ID"]
-              )
-              
-              # Download App Store provisioning profile
+              # Download App Store provisioning profile that matches existing certificate
               sigh(
                 app_identifier: ENV["APP_BUNDLE_ID"],
                 team_id: ENV["TEAM_ID"],
-                username: "stephen@luckyjackpotcasino.com"
+                username: "stephen@luckyjackpotcasino.com",
+                skip_certificate_verification: true
               )
             end
           end
