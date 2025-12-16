@@ -37,6 +37,7 @@ You are allowed to:
 - Add caching (Unity Library, Gradle, CocoaPods, Xcode DerivedData)
 - Improve build parallelism
 - Harden secrets usage
+- Trigger builds using the github CLI
 
 You MUST:
 - Keep workflows deterministic

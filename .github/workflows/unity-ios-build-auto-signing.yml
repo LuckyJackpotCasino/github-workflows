@@ -254,6 +254,17 @@ jobs:
           
           echo "✅ CocoaPods dependencies installed"
       
+      - name: Configure Manual Signing
+        working-directory: IosProjectFolder
+        run: |
+          echo "🔧 Configuring manual signing for all targets..."
+          
+          # Update main project to use manual signing
+          /usr/libexec/PlistBuddy -c "Set :objects:1D6058900D05DD3D006BFB54:ProvisioningStyle Manual" Unity-iPhone.xcodeproj/project.pbxproj 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Set :objects:7F4E059F2717216D00A2CBE4:ProvisioningStyle Manual" Unity-iPhone.xcodeproj/project.pbxproj 2>/dev/null || true
+          
+          echo "✅ Project configured for manual signing"
+      
       - name: Clean Xcode Build
         working-directory: IosProjectFolder
         run: |
