@@ -211,6 +211,32 @@ jobs:
           # Verify certificate is in keychain
           security find-identity -v -p codesigning | grep -i distribution || echo "⚠️  Distribution cert verification pending..."
       
+      - name: Configure Keychain for Code Signing
+        run: |
+          echo "🔐 Configuring keychain for non-interactive code signing..."
+          
+          # Keychain configuration
+          KEYCHAIN_PATH="$HOME/Library/Keychains/login.keychain-db"
+          KEYCHAIN_PASSWORD="temporary-password"  # Fastlane uses login keychain
+          
+          # Unlock keychain with extended timeout (6 hours)
+          security unlock-keychain -p "" "$KEYCHAIN_PATH" 2>/dev/null || true
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          
+          # Critical: Set key partition list to allow codesign access without prompting
+          # This is the most commonly missed step that causes errSecInternalComponent
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -k "" "$KEYCHAIN_PATH" 2>/dev/null || \
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN_PATH"
+          
+          # Ensure keychain is in search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | sed s/\"//g | grep -v login.keychain)
+          
+          # Verify certificate access
+          echo "📋 Verifying code signing identities:"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          
+          echo "✅ Keychain configured for non-interactive code signing"
+      
       - name: Setup CocoaPods
         run: |
           if ! command -v pod &> /dev/null; then
