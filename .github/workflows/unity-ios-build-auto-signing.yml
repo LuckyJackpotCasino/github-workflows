@@ -72,6 +72,20 @@ jobs:
           fi
           
           echo "✅ Repository ready (Library folder preserved for speed)"
+
+      - name: Ensure Unity is not running (shared workspace safety)
+        run: |
+          # Shared workspace + someone opening the project in the Editor can break CI.
+          # Ensure no Unity Editor instance is holding the project open.
+          echo "🛑 Ensuring Unity is not running..."
+          pkill -f "/Applications/Unity/Hub/Editor" || true
+          pkill -x "Unity" || true
+          pkill -x "Unity Hub" || true
+          pkill -x "UnityPackageManager" || true
+          
+          # Remove any leftover lock file if present
+          rm -f "$(pwd)/Temp/UnityLockfile" 2>/dev/null || true
+          echo "✅ Unity process/lock cleanup complete"
       
       # No cache needed - Library folder stays on disk between builds!
       
@@ -341,7 +355,7 @@ jobs:
             <key>provisioningProfiles</key>
             <dict>
               <key>$BUNDLE_ID</key>
-              <string>$PROFILE_UUID</string>
+              <string>${{ env.MATCH_PROFILE_NAME }}</string>
             </dict>
             <key>signingStyle</key>
             <string>manual</string>
@@ -355,7 +369,8 @@ jobs:
           
           echo "📋 Export Options:"
           echo "  Bundle ID: $BUNDLE_ID"
-          echo "  Profile UUID: $PROFILE_UUID"
+          echo "  Match Profile Name: ${{ env.MATCH_PROFILE_NAME }}"
+          echo "  Match Profile UUID: ${{ env.MATCH_PROFILE_UUID }}"
           echo "  Team ID: ${{ inputs.team_id }}"
           
           xcodebuild -exportArchive \
