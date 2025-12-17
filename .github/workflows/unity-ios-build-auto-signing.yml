@@ -195,6 +195,25 @@ jobs:
           echo "🔐 Syncing certificates and profiles with Match..."
           $FASTLANE sync
           
+          # Capture the installed profile UUID + name for later xcodebuild signing settings.
+          # (Fastlane prints these but doesn't export them to subsequent steps.)
+          PROFILE_PATH=$(ls -t "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision 2>/dev/null | head -1)
+          if [ -z "$PROFILE_PATH" ]; then
+            echo "❌ No provisioning profile found after match!"
+            exit 1
+          fi
+          
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$(security cms -D -i "$PROFILE_PATH")")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< "$(security cms -D -i "$PROFILE_PATH")")
+          
+          echo "✅ Match installed profile:"
+          echo "  - Path: $PROFILE_PATH"
+          echo "  - UUID: $PROFILE_UUID"
+          echo "  - Name: $PROFILE_NAME"
+          
+          echo "MATCH_PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "MATCH_PROFILE_NAME=$PROFILE_NAME" >> "$GITHUB_ENV"
+          
           echo "✅ Match completed - certificates and profiles ready"
       
       - name: Setup CocoaPods
@@ -279,6 +298,7 @@ jobs:
           # Use Fastlane Match for signing (industry standard)
           # Match provides certificate and provisioning profile
           # Manual signing for deterministic, reproducible builds
+          # Unity's pbxproj uses PROVISIONING_PROFILE(_SPECIFIER)_APP indirection, so set those.
           xcodebuild archive \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \
@@ -287,6 +307,9 @@ jobs:
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Distribution: Lucky Jackpot Casino LLC (D3H7LWSJL6)" \
+            "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution: Lucky Jackpot Casino LLC (D3H7LWSJL6)" \
+            PROVISIONING_PROFILE_APP="${{ env.MATCH_PROFILE_UUID }}" \
+            PROVISIONING_PROFILE_SPECIFIER_APP="${{ env.MATCH_PROFILE_NAME }}" \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | tee /tmp/xcodebuild-archive.log
           
