@@ -156,6 +156,21 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: git@github.com:LuckyJackpotCasino/ios-certificates.git
         run: |
+          echo "🔐 Creating CI keychain for codesigning..."
+          CI_KEYCHAIN_PATH="$RUNNER_TEMP/ci-signing.keychain-db"
+          CI_KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          
+          security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || true
+          security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
+          security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
+          security default-keychain -s "$CI_KEYCHAIN_PATH"
+          
+          echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
+          echo "✅ CI keychain ready: $CI_KEYCHAIN_PATH"
+          
           # Install fastlane if needed
           if ! command -v /Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane &> /dev/null; then
             echo "Installing fastlane..."
@@ -196,6 +211,8 @@ jobs:
               match(
                 type: "appstore",
                 api_key: api_key,
+                keychain_name: ENV["CI_KEYCHAIN_PATH"],
+                keychain_password: ENV["CI_KEYCHAIN_PASSWORD"],
                 readonly: true,
                 verbose: true
               )
@@ -205,9 +222,14 @@ jobs:
           
           export API_KEY_ID="${{ env.API_KEY_ID }}"
           export API_ISSUER_ID="${{ env.API_ISSUER_ID }}"
+          export CI_KEYCHAIN_PATH="$CI_KEYCHAIN_PATH"
+          export CI_KEYCHAIN_PASSWORD="$CI_KEYCHAIN_PASSWORD"
           
           echo "🔐 Syncing certificates and profiles with Match..."
           $FASTLANE sync
+          
+          echo "🔓 Allow codesign to access keys (partition list)..."
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" >/dev/null || true
           
           # Capture the installed profile UUID + name for later xcodebuild signing settings.
           # (Fastlane prints these but doesn't export them to subsequent steps.)
@@ -403,6 +425,11 @@ jobs:
         if: always()
         run: |
           echo "🧹 Cleaning up..."
+          
+          # Delete CI keychain
+          if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$CI_KEYCHAIN_PATH" || true
+          fi
           
           # Clean up files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
