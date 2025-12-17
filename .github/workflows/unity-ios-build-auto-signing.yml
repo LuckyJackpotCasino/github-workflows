@@ -212,9 +212,10 @@ jobs:
           # Clean DerivedData to avoid stale signing state
           rm -rf ~/Library/Developer/Xcode/DerivedData/Unity-iPhone-*
           
-          # Use Xcode's automatic provisioning with Distribution certificate
-          # -allowProvisioningUpdates ONLY works with automatic signing
-          # Force Distribution certificate for App Store builds
+          # Apple's recommended CI/CD approach:
+          # 1. Archive with automatic signing (Development)
+          # 2. Export with Distribution signing (handled by ExportOptions.plist)
+          # -allowProvisioningUpdates automatically provisions Development certificates/profiles
           xcodebuild archive \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \
@@ -226,7 +227,6 @@ jobs:
             -authenticationKeyID ${{ env.API_KEY_ID }} \
             -authenticationKeyIssuerID ${{ env.API_ISSUER_ID }} \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
-            CODE_SIGN_IDENTITY="Apple Distribution: Lucky Jackpot Casino LLC (D3H7LWSJL6)" \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | tee /tmp/xcodebuild-archive.log
           
