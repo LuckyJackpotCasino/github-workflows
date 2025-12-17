@@ -191,17 +191,6 @@ jobs:
           
           echo "✅ CocoaPods dependencies installed"
       
-      - name: Configure Manual Signing in Project
-        working-directory: IosProjectFolder
-        run: |
-          echo "🔧 Configuring project for manual signing..."
-          
-          # Unity generates project with automatic signing
-          # We need to change it to manual for CI builds
-          sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' Unity-iPhone.xcodeproj/project.pbxproj
-          
-          echo "✅ Project configured for manual signing"
-      
       - name: Clean Xcode Build
         working-directory: IosProjectFolder
         run: |
@@ -223,21 +212,21 @@ jobs:
           # Clean DerivedData to avoid stale signing state
           rm -rf ~/Library/Developer/Xcode/DerivedData/Unity-iPhone-*
           
-          # Use Xcode's automatic provisioning via API
-          # -allowProvisioningUpdates downloads/creates profiles automatically
-          # Manual signing with Distribution certificate for App Store
+          # Use Xcode's automatic provisioning with Distribution certificate
+          # -allowProvisioningUpdates ONLY works with automatic signing
+          # Force Distribution certificate for App Store builds
           xcodebuild archive \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \
             -configuration Release \
             -archivePath $GITHUB_WORKSPACE/Unity-iPhone.xcarchive \
             -allowProvisioningUpdates \
+            -allowProvisioningDeviceRegistration \
             -authenticationKeyPath ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8 \
             -authenticationKeyID ${{ env.API_KEY_ID }} \
             -authenticationKeyIssuerID ${{ env.API_ISSUER_ID }} \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
+            CODE_SIGN_IDENTITY="Apple Distribution: Lucky Jackpot Casino LLC (D3H7LWSJL6)" \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | tee /tmp/xcodebuild-archive.log
           
