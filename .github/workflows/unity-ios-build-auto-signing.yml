@@ -285,6 +285,15 @@ jobs:
           # Unity generates projects with automatic signing by default
           # Change to manual signing for CI with Match
           sed -i '' 's/ProvisioningStyle = Automatic;/ProvisioningStyle = Manual;/g' Unity-iPhone.xcodeproj/project.pbxproj
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' Unity-iPhone.xcodeproj/project.pbxproj
+          
+          # Wire the Match profile into Unity's pbxproj indirection variables
+          # (Unity uses PROVISIONING_PROFILE(_SPECIFIER)_APP, which then gets referenced by targets)
+          sed -i '' "s/PROVISIONING_PROFILE_APP = \"\";/PROVISIONING_PROFILE_APP = \"${MATCH_PROFILE_UUID}\";/g" Unity-iPhone.xcodeproj/project.pbxproj
+          sed -i '' "s/PROVISIONING_PROFILE_SPECIFIER_APP = \"\";/PROVISIONING_PROFILE_SPECIFIER_APP = \"${MATCH_PROFILE_NAME}\";/g" Unity-iPhone.xcodeproj/project.pbxproj
+          
+          # Ensure we sign with Distribution for Release archives
+          sed -i '' 's/CODE_SIGN_IDENTITY = \"iPhone Developer\";/CODE_SIGN_IDENTITY = \"Apple Distribution\";/g' Unity-iPhone.xcodeproj/project.pbxproj
           
           echo "✅ Project configured for manual signing"
       
@@ -312,18 +321,13 @@ jobs:
           # Use Fastlane Match for signing (industry standard)
           # Match provides certificate and provisioning profile
           # Manual signing for deterministic, reproducible builds
-          # Unity's pbxproj uses PROVISIONING_PROFILE(_SPECIFIER)_APP indirection, so set those.
+          # Signing settings are applied by editing Unity-iPhone.xcodeproj/project.pbxproj in the prior step.
           xcodebuild archive \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \
             -configuration Release \
             -archivePath $GITHUB_WORKSPACE/Unity-iPhone.xcarchive \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution: Lucky Jackpot Casino LLC (D3H7LWSJL6)" \
-            "CODE_SIGN_IDENTITY[sdk=iphoneos*]=Apple Distribution: Lucky Jackpot Casino LLC (D3H7LWSJL6)" \
-            PROVISIONING_PROFILE_APP="${{ env.MATCH_PROFILE_UUID }}" \
-            PROVISIONING_PROFILE_SPECIFIER_APP="${{ env.MATCH_PROFILE_NAME }}" \
             IPHONEOS_DEPLOYMENT_TARGET=13.0 \
             | tee /tmp/xcodebuild-archive.log
           
