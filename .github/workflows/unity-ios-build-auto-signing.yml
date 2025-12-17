@@ -137,12 +137,65 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" Info.plist
           echo "✅ Export compliance added (None of the algorithms mentioned)"
       
-      - name: Setup App Store Connect Authentication
+      - name: Setup Signing with Fastlane Match
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: git@github.com:LuckyJackpotCasino/ios-certificates.git
         run: |
+          # Install fastlane if needed
+          if ! command -v /Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane &> /dev/null; then
+            echo "Installing fastlane..."
+            gem install fastlane --user-install
+          fi
+          
+          FASTLANE=/Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane
+          
+          # Setup App Store Connect API key
           mkdir -p ~/private_keys
           echo "${{ env.API_KEY_CONTENT }}" | base64 --decode > ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
           chmod 600 ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
-          echo "✅ App Store Connect API key configured"
+          
+          # Create Match configuration
+          mkdir -p fastlane
+          cat > fastlane/Matchfile << 'MATCHFILE'
+          git_url(ENV["MATCH_GIT_URL"])
+          storage_mode("git")
+          type("appstore")
+          git_branch("main")
+          username("stephen@luckyjackpotcasino.com")
+          team_id("${{ env.TEAM_ID }}")
+          app_identifier(["${{ inputs.app_bundle_id }}"])
+          MATCHFILE
+          
+          cat > fastlane/Fastfile << 'FASTFILE'
+          default_platform(:ios)
+          
+          platform :ios do
+            lane :sync do
+              api_key = app_store_connect_api_key(
+                key_id: ENV["API_KEY_ID"],
+                issuer_id: ENV["API_ISSUER_ID"],
+                key_filepath: "#{ENV['HOME']}/private_keys/AuthKey_#{ENV['API_KEY_ID']}.p8",
+                in_house: false
+              )
+              
+              match(
+                type: "appstore",
+                api_key: api_key,
+                readonly: true,
+                verbose: true
+              )
+            end
+          end
+          FASTFILE
+          
+          export API_KEY_ID="${{ env.API_KEY_ID }}"
+          export API_ISSUER_ID="${{ env.API_ISSUER_ID }}"
+          
+          echo "🔐 Syncing certificates and profiles with Match..."
+          $FASTLANE sync
+          
+          echo "✅ Match completed - certificates and profiles ready"
       
       - name: Setup CocoaPods
         run: |
