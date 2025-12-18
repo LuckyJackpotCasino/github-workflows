@@ -213,7 +213,7 @@ jobs:
                 api_key: api_key,
                 keychain_name: ENV["CI_KEYCHAIN_PATH"],
                 keychain_password: ENV["CI_KEYCHAIN_PASSWORD"],
-                readonly: true,
+                readonly: false,
                 verbose: true
               )
             end
