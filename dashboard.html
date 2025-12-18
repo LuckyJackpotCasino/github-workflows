@@ -308,7 +308,7 @@
                     <button class="refresh-btn" onclick="loadData()">
                         🔄 Refresh Now
                     </button>
-                    <span style="opacity: 0.8; font-size: 12px;">Auto-refreshes every 30s</span>
+                    <span style="opacity: 0.8; font-size: 12px;">Auto-refreshes every 5min</span>
                 </div>
             </div>
         </div>
@@ -371,7 +371,7 @@
         </div>
         
         <div class="last-updated" style="padding: 15px; font-size: 12px; color: #9ca3af;">
-            <small>Dashboard will automatically refresh every 30 seconds to show latest build status</small>
+            <small>⚡ Auto-refresh: 5 minutes | 🔄 Manual refresh: Click button above | ⚠️ Respects GitHub rate limits</small>
         </div>
     </div>
 
@@ -391,7 +391,7 @@
         async function getBuildStatus(app) {
             try {
                 // This requires a local server to fetch GitHub API
-                const response = await fetch(`http://localhost:9000/status/${app}`);
+                const response = await fetch(`http://localhost:8765/status/${app}`);
                 const data = await response.json();
                 return data;
             } catch (error) {
@@ -498,8 +498,8 @@
         // Load data on page load
         loadData();
         
-        // Auto-refresh every 30 seconds
-        setInterval(loadData, 30000);
+        // Auto-refresh every 5 minutes (300 seconds) to respect rate limits
+        setInterval(loadData, 300000);
 
         // Trigger functions
         async function triggerBuild(app, platform) {
@@ -513,7 +513,7 @@
             btn.textContent = '⏳';
 
             try {
-                const response = await fetch(`http://localhost:9000/trigger/${app}/${platform}`, {
+                const response = await fetch(`http://localhost:8765/trigger/${app}/${platform}`, {
                     method: 'POST'
                 });
                 const result = await response.json();
@@ -544,7 +544,7 @@
             btn.textContent = '⏳ Triggering...';
 
             try {
-                const response = await fetch(`http://localhost:9000/trigger-bulk/${platform}`, {
+                const response = await fetch(`http://localhost:8765/trigger-bulk/${platform}`, {
                     method: 'POST'
                 });
                 const result = await response.json();

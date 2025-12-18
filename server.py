@@ -9,11 +9,13 @@ import time
 from urllib.parse import urlparse
 from datetime import datetime
 
-PORT = 9000
+PORT = 8765
 
-# Cache for build status
+# Cache for build status (aggressive caching to avoid rate limits)
 cache = {}
 cache_time = {}
+CACHE_DURATION = 300  # 5 minutes (was 60 seconds)
+rate_limited_until = 0  # Track when rate limit expires
 
 apps = [
     {'name': 'blackjack21', 'aabOffset': 200, 'amazonOffset': 100},
@@ -66,13 +68,23 @@ def trigger_app_build(app, platform):
 
 def get_build_status(app):
     """Fetch build status for an app from GitHub Actions"""
-    # Return cache if less than 30 seconds old
+    global rate_limited_until
+    
+    # If rate limited, return stale cache with indicator
+    if time.time() < rate_limited_until:
+        if app in cache:
+            status = cache[app].copy()
+            status['rate_limited'] = True
+            return status
+        return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'rate_limited': True}
+    
+    # Return cache if less than CACHE_DURATION old
     if app in cache and app in cache_time:
-        if time.time() - cache_time[app] < 30:
+        if time.time() - cache_time[app] < CACHE_DURATION:
             return cache[app]
     
     try:
-        # Get recent workflow runs
+        # Get recent workflow runs (gh CLI uses authenticated token automatically)
         cmd = f"gh run list --repo LuckyJackpotCasino/{app} --limit 3 --json status,conclusion,databaseId 2>/dev/null"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
         
@@ -125,10 +137,23 @@ def get_build_status(app):
         
         cache[app] = status
         cache_time[app] = time.time()
+        
+        # Log cache update for debugging
+        print(f"[{time.strftime('%H:%M:%S')}] Cached status for {app}", flush=True)
         return status
         
     except Exception as e:
-        print(f"Error fetching {app}: {e}")
+        error_msg = str(e)
+        print(f"Error fetching {app}: {error_msg}", flush=True)
+        
+        # Detect rate limiting
+        if 'rate limit' in error_msg.lower() or 'API rate limit exceeded' in error_msg:
+            print(f"⚠️  RATE LIMITED! Pausing API calls for 1 hour", flush=True)
+            rate_limited_until = time.time() + 3600  # Pause for 1 hour
+        
+        # Return stale cache if available
+        if app in cache:
+            return cache[app]
         return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending'}
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
@@ -258,8 +283,8 @@ if __name__ == '__main__':
 ║   🎰 Lucky Jackpot Casino - Build Dashboard Server       ║
 ╠═══════════════════════════════════════════════════════════╣
 ║                                                            ║
-║   Dashboard: http://localhost:9000                        ║
-║   API:       http://localhost:9000/api/status             ║
+║   Dashboard: http://localhost:8765                        ║
+║   API:       http://localhost:8765/api/status             ║
 ║                                                            ║
 ║   Press Ctrl+C to stop                                    ║
 ║                                                            ║
