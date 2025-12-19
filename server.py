@@ -18,22 +18,30 @@ CACHE_DURATION = 300  # 5 minutes (was 60 seconds)
 rate_limited_until = 0  # Track when rate limit expires
 
 apps = [
-    {'name': 'blackjack21', 'aabOffset': 200, 'amazonOffset': 100},
-    {'name': 'keno4card', 'aabOffset': 300, 'amazonOffset': 200},
-    {'name': 'keno20card', 'aabOffset': 400, 'amazonOffset': 300},
-    {'name': 'kenocasino', 'aabOffset': 500, 'amazonOffset': 400},
-    {'name': 'kenosuper4x', 'aabOffset': 600, 'amazonOffset': 500},
-    {'name': 'roulette', 'aabOffset': 600, 'amazonOffset': 500},
-    {'name': 'vintageslots', 'aabOffset': 600, 'amazonOffset': 500},
-    {'name': 'videopokercasino', 'aabOffset': 700, 'amazonOffset': 600},
-    {'name': 'multihandpoker', 'aabOffset': 700, 'amazonOffset': 600}
+    # Lucky Jackpot Casino Games
+    {'name': 'blackjack21', 'aabOffset': 200, 'amazonOffset': 100, 'studio': 'LJC'},
+    {'name': 'keno4card', 'aabOffset': 300, 'amazonOffset': 200, 'studio': 'LJC'},
+    {'name': 'keno20card', 'aabOffset': 400, 'amazonOffset': 300, 'studio': 'LJC'},
+    {'name': 'kenocasino', 'aabOffset': 500, 'amazonOffset': 400, 'studio': 'LJC'},
+    {'name': 'kenosuper4x', 'aabOffset': 600, 'amazonOffset': 500, 'studio': 'LJC'},
+    {'name': 'roulette', 'aabOffset': 600, 'amazonOffset': 500, 'studio': 'LJC'},
+    {'name': 'vintageslots', 'aabOffset': 600, 'amazonOffset': 500, 'studio': 'LJC'},
+    {'name': 'videopokercasino', 'aabOffset': 700, 'amazonOffset': 600, 'studio': 'LJC'},
+    {'name': 'multihandpoker', 'aabOffset': 700, 'amazonOffset': 600, 'studio': 'LJC'},
+    # Free Vegas Games
+    {'name': 'fvg-multicardkeno', 'aabOffset': 100, 'amazonOffset': 50, 'studio': 'FVG'},
+    {'name': 'fvg-keno', 'aabOffset': 200, 'amazonOffset': 100, 'studio': 'FVG'},
+    {'name': 'fvg-fourcardkeno', 'aabOffset': 300, 'amazonOffset': 150, 'studio': 'FVG'}
 ]
 
 def get_workflow_file(app):
     """Get the workflow filename for an app"""
     workflow_map = {
         'kenocasino': 'keno-builds.yml',
-        'blackjack21': 'blackjack-builds.yml'
+        'blackjack21': 'blackjack-builds.yml',
+        'fvg-multicardkeno': 'fvg-multicardkeno-builds.yml',
+        'fvg-keno': 'fvg-keno-builds.yml',
+        'fvg-fourcardkeno': 'fvg-fourcardkeno-builds.yml'
     }
     return workflow_map.get(app, f'{app}-builds.yml')
 
@@ -279,16 +287,17 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
         print("""
-╔═══════════════════════════════════════════════════════════╗
-║   🎰 Lucky Jackpot Casino - Build Dashboard Server       ║
-╠═══════════════════════════════════════════════════════════╣
-║                                                            ║
-║   Dashboard: http://localhost:8765                        ║
-║   API:       http://localhost:8765/api/status             ║
-║                                                            ║
-║   Press Ctrl+C to stop                                    ║
-║                                                            ║
-╚═══════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════╗
+║   🎰 Multi-Studio Build Dashboard Server                  ║
+║   Lucky Jackpot Casino + Free Vegas Games                 ║
+╠════════════════════════════════════════════════════════════╣
+║                                                             ║
+║   Dashboard: http://localhost:8765                         ║
+║   API:       http://localhost:8765/api/status              ║
+║                                                             ║
+║   Press Ctrl+C to stop                                     ║
+║                                                             ║
+╚════════════════════════════════════════════════════════════╝
         """)
         try:
             httpd.serve_forever()

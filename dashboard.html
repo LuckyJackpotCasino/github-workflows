@@ -300,8 +300,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🎰 Lucky Jackpot Casino</h1>
-            <p>Build Dashboard - Real-time CI/CD Status</p>
+            <h1>🎰 Multi-Studio Build Dashboard</h1>
+            <p>Lucky Jackpot Casino + Free Vegas Games - Real-time CI/CD Status</p>
             <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
                 <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
                     <span style="opacity: 0.9;">Last updated: <span id="last-updated-top">Loading...</span></span>
@@ -346,7 +346,7 @@
                 <div class="label">❌ Failed</div>
             </div>
             <div class="stat-card pending">
-                <div class="number" id="stat-pending">27</div>
+                <div class="number" id="stat-pending">36</div>
                 <div class="label">📦 Pending</div>
             </div>
         </div>
@@ -377,15 +377,20 @@
 
     <script>
         const apps = [
-            { name: 'blackjack21', aabOffset: 200, amazonOffset: 100 },
-            { name: 'keno4card', aabOffset: 300, amazonOffset: 200 },
-            { name: 'keno20card', aabOffset: 400, amazonOffset: 300 },
-            { name: 'kenocasino', aabOffset: 500, amazonOffset: 400 },
-            { name: 'kenosuper4x', aabOffset: 600, amazonOffset: 500 },
-            { name: 'roulette', aabOffset: 600, amazonOffset: 500 },
-            { name: 'vintageslots', aabOffset: 600, amazonOffset: 500 },
-            { name: 'videopokercasino', aabOffset: 700, amazonOffset: 600 },
-            { name: 'multihandpoker', aabOffset: 700, amazonOffset: 600 }
+            // Lucky Jackpot Casino Games
+            { name: 'blackjack21', aabOffset: 200, amazonOffset: 100, studio: 'LJC' },
+            { name: 'keno4card', aabOffset: 300, amazonOffset: 200, studio: 'LJC' },
+            { name: 'keno20card', aabOffset: 400, amazonOffset: 300, studio: 'LJC' },
+            { name: 'kenocasino', aabOffset: 500, amazonOffset: 400, studio: 'LJC' },
+            { name: 'kenosuper4x', aabOffset: 600, amazonOffset: 500, studio: 'LJC' },
+            { name: 'roulette', aabOffset: 600, amazonOffset: 500, studio: 'LJC' },
+            { name: 'vintageslots', aabOffset: 600, amazonOffset: 500, studio: 'LJC' },
+            { name: 'videopokercasino', aabOffset: 700, amazonOffset: 600, studio: 'LJC' },
+            { name: 'multihandpoker', aabOffset: 700, amazonOffset: 600, studio: 'LJC' },
+            // Free Vegas Games
+            { name: 'fvg-multicardkeno', aabOffset: 100, amazonOffset: 50, studio: 'FVG' },
+            { name: 'fvg-keno', aabOffset: 200, amazonOffset: 100, studio: 'FVG' },
+            { name: 'fvg-fourcardkeno', aabOffset: 300, amazonOffset: 150, studio: 'FVG' }
         ];
 
         async function getBuildStatus(app) {
@@ -450,10 +455,16 @@
                     // Create new row on first load
                     const row = document.createElement('tr');
                     row.setAttribute('data-app', app.name);
+                    
+                    // Add studio badge to app name
+                    const studioEmoji = app.studio === 'FVG' ? '🎲' : '🎰';
+                    const studioLabel = app.studio === 'FVG' ? 'FVG' : 'LJC';
+                    
                     row.innerHTML = `
                         <td>${i + 1}</td>
                         <td>
-                            <div class="app-name">${app.name}</div>
+                            <div class="app-name">${studioEmoji} ${app.name}</div>
+                            <small style="color: #9ca3af; font-size: 11px;">${studioLabel}</small>
                         </td>
                         <td><span class="offset-info">${app.aabOffset} / ${app.amazonOffset}</span></td>
                         <td class="status-ios">${getStatusBadge(status.ios, status.iosRun)}</td>
