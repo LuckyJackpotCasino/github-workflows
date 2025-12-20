@@ -280,30 +280,6 @@ jobs:
           echo "✅ CocoaPods repos cleaned"
           pod repo list
       
-      - name: Fix Podfile Deployment Target
-        working-directory: IosProjectFolder
-        run: |
-          echo "🔧 Fixing deployment target in Podfile..."
-          
-          # Add post_install hook to set minimum iOS version to 15.0 for Firebase 12.2.0
-          if ! grep -q "post_install" Podfile; then
-            cat >> Podfile << 'PODFILE'
-          
-          post_install do |installer|
-            installer.pods_project.targets.each do |target|
-              target.build_configurations.each do |config|
-                if config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f < 15.0
-                  config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-                end
-              end
-            end
-          end
-          PODFILE
-            echo "✅ Added deployment target fix to Podfile (iOS 15.0+)"
-          else
-            echo "Podfile already has post_install hook"
-          fi
-      
       - name: Install CocoaPods Dependencies
         working-directory: IosProjectFolder
         run: |
