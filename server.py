@@ -29,9 +29,9 @@ apps = [
     {'name': 'videopokercasino', 'aabOffset': 700, 'amazonOffset': 600, 'studio': 'LJC'},
     {'name': 'multihandpoker', 'aabOffset': 700, 'amazonOffset': 600, 'studio': 'LJC'},
     # Free Vegas Games
-    {'name': 'fvg-multicardkeno', 'aabOffset': 100, 'amazonOffset': 50, 'studio': 'FVG'},
-    {'name': 'fvg-keno', 'aabOffset': 200, 'amazonOffset': 100, 'studio': 'FVG'},
-    {'name': 'fvg-fourcardkeno', 'aabOffset': 300, 'amazonOffset': 150, 'studio': 'FVG'}
+    {'name': 'fvg-multicardkeno', 'aabOffset': 200, 'amazonOffset': 100, 'studio': 'FVG'},
+    {'name': 'fvg-keno', 'aabOffset': 500, 'amazonOffset': 250, 'studio': 'FVG'},
+    {'name': 'fvg-fourcardkeno', 'aabOffset': 400, 'amazonOffset': 200, 'studio': 'FVG'}
 ]
 
 def get_workflow_file(app):

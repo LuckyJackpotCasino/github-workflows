@@ -27,6 +27,11 @@ on:
         required: true
         type: string
         description: 'iOS app bundle identifier (e.g., com.luckyjackpotcasino.kenocasino)'
+      runner_label:
+        required: false
+        type: string
+        default: 'self-hosted'
+        description: 'Runner label to use (default: self-hosted, or macos-secondary for secondary runner)'
     secrets:
       GH_SSH_KEY:
         required: false
@@ -43,7 +48,7 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: ${{ inputs.runner_label }}
     timeout-minutes: 180
     env:
       API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
