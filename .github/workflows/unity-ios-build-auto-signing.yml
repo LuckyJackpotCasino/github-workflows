@@ -159,7 +159,7 @@ jobs:
       - name: Setup Signing with Fastlane Match
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-          MATCH_GIT_URL: git@github.com:LuckyJackpotCasino/ios-certificates.git
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: |
           echo "🔐 Creating CI keychain for codesigning..."
           CI_KEYCHAIN_PATH="$RUNNER_TEMP/ci-signing.keychain-db"
