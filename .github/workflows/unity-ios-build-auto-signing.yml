@@ -268,25 +268,6 @@ jobs:
           
           echo "✅ Match completed - certificates and profiles ready"
       
-      - name: Setup CocoaPods
-        run: |
-          # Use Homebrew-installed CocoaPods (already installed on build server)
-          if command -v /opt/homebrew/bin/pod &> /dev/null; then
-            POD=/opt/homebrew/bin/pod
-            echo "✅ Using Homebrew CocoaPods: $($POD --version)"
-          else
-            echo "❌ CocoaPods not found! Install it with: brew install cocoapods"
-            exit 1
-          fi
-          
-          # One-time cleanup of duplicate repos (only if both exist)
-          if [ -d "$HOME/.cocoapods/repos/cocoapods" ] && [ -d "$HOME/.cocoapods/repos/trunk" ]; then
-            echo "🧹 Removing duplicate 'cocoapods' repo (one-time cleanup)..."
-            rm -rf "$HOME/.cocoapods/repos/cocoapods"
-          fi
-          
-          echo "✅ CocoaPods ready"
-      
       - name: Install CocoaPods Dependencies
         working-directory: IosProjectFolder
         run: |

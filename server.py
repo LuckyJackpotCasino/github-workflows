@@ -21,6 +21,9 @@ cache_time = {}
 CACHE_DURATION = 300  # 5 minutes (was 60 seconds)
 rate_limited_until = 0  # Track when rate limit expires
 
+# Track runner states to detect job completion
+runner_states = {}  # {runner_name: {'busy': bool, 'project': str, 'last_check': timestamp}}
+
 apps = [
     # Lucky Jackpot Casino Games
     {'name': 'blackjack21', 'aabOffset': 200, 'amazonOffset': 100, 'studio': 'LJC'},
@@ -122,27 +125,38 @@ def check_local_build_status(app):
                     log_path = os.path.join(diag_dir, latest_log)
                     mtime = os.path.getmtime(log_path)
                     
-                    # If worker log modified in last 2 minutes, runner is active
-                    if time.time() - mtime < 120:
-                        try:
-                            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                log_lines = f.readlines()[-500:]  # Check last 500 lines
-                                log_content = ''.join(log_lines)
+                    # Check log even if not recently modified to catch failures
+                    try:
+                        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            log_lines = f.readlines()[-1000:]  # Check last 1000 lines
+                            log_content = ''.join(log_lines)
+                            
+                            # Check if this log mentions our app
+                            if app in log_content or f'/{app}/' in log_content:
+                                # Detect platform from job name
+                                platform = None
+                                if 'Build-iOS' in log_content or 'unity-ios-build' in log_content:
+                                    platform = 'ios'
+                                elif 'Build-AAB' in log_content or 'unity-android-build' in log_content:
+                                    if 'Build-Amazon' in log_content:
+                                        platform = 'amazon'
+                                    else:
+                                        platform = 'aab'
                                 
-                                # Check if this log mentions our app
-                                if app in log_content or f'/{app}/' in log_content:
-                                    # This runner is actively working on this app!
-                                    # Try to determine which platform
-                                    if 'Build-iOS' in log_content or 'unity-ios-build' in log_content:
-                                        status_updates['ios'] = 'in_progress'
-                                    if 'Build-AAB' in log_content or 'unity-android-build' in log_content:
-                                        # Check if it's AAB or Amazon
-                                        if 'Build-Amazon' in log_content:
-                                            status_updates['amazon'] = 'in_progress'
-                                        else:
-                                            status_updates['aab'] = 'in_progress'
-                        except Exception as e:
-                            print(f"Error reading worker log: {e}", flush=True)
+                                if platform:
+                                    # Check for failure indicators first
+                                    if 'Job failed' in log_content or 'Process completed with exit code' in log_content:
+                                        # Look for non-zero exit codes
+                                        if 'exit code 1' in log_content or 'exit code 143' in log_content or 'Error:' in log_content:
+                                            status_updates[platform] = 'failure'
+                                            print(f"[DEBUG] Detected {platform} failure for {app} in worker log", flush=True)
+                                    # If recently modified, it's in progress
+                                    elif time.time() - mtime < 120:
+                                        # Only mark in_progress if we haven't detected failure
+                                        if platform not in status_updates:
+                                            status_updates[platform] = 'in_progress'
+                    except Exception as e:
+                        print(f"Error reading worker log: {e}", flush=True)
             
             # Check for recent Unity log files
             unity_logs = []
@@ -252,8 +266,17 @@ def get_build_status(app):
             return status
         return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'rate_limited': True}
     
+    # If local status shows failure, force cache refresh immediately
+    force_refresh = False
+    if local_status:
+        for platform, state in local_status.items():
+            if state == 'failure':
+                force_refresh = True
+                print(f"[DEBUG] Forcing cache refresh for {app} due to local failure detection", flush=True)
+                break
+    
     # Return cache if less than CACHE_DURATION old, but merge local status
-    if app in cache and app in cache_time:
+    if app in cache and app in cache_time and not force_refresh:
         if time.time() - cache_time[app] < CACHE_DURATION:
             cached = cache[app].copy()
             if local_status:
@@ -342,9 +365,12 @@ def get_build_status(app):
 
 def get_runner_status():
     """Fetch status of all GitHub Actions runners from local system"""
+    global runner_states
+    
     try:
         runners = []
         base_dir = os.path.expanduser('~/actions-runners')
+        completed_jobs = []  # Track jobs that just completed
         
         # Look for mac-studio-runner directories
         if not os.path.exists(base_dir):
@@ -413,6 +439,29 @@ def get_runner_status():
                                 except:
                                     pass
                         
+                        # Detect job completion: was busy, now idle
+                        runner_name = item
+                        previous_state = runner_states.get(runner_name, {})
+                        
+                        if previous_state.get('busy') and not is_busy:
+                            # Runner just finished a job!
+                            completed_project = previous_state.get('project')
+                            if completed_project:
+                                completed_jobs.append(completed_project)
+                                print(f"🎯 [JOB COMPLETE] {runner_name} just finished building {completed_project}! Clearing cache...", flush=True)
+                                # Clear cache for this app to force immediate refresh
+                                if completed_project in cache:
+                                    del cache[completed_project]
+                                if completed_project in cache_time:
+                                    del cache_time[completed_project]
+                        
+                        # Update runner state tracking
+                        runner_states[runner_name] = {
+                            'busy': is_busy,
+                            'project': project_name,
+                            'last_check': time.time()
+                        }
+                        
                         runners.append({
                             'id': hash(item),
                             'name': item,
@@ -438,13 +487,16 @@ def get_runner_status():
         busy = len([r for r in runners if r.get('busy') == True])
         idle = online - busy
         
-        return {
+        result = {
             'total': total,
             'online': online,
             'busy': busy,
             'idle': idle,
-            'runners': runners
+            'runners': runners,
+            'completed_jobs': completed_jobs  # Include list of just-completed jobs
         }
+        
+        return result
         
     except Exception as e:
         print(f"Error fetching runner status: {e}", flush=True)
