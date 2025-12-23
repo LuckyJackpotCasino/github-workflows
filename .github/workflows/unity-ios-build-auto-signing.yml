@@ -279,14 +279,13 @@ jobs:
             exit 1
           fi
           
-          echo "🧹 Cleaning up duplicate CocoaPods repos..."
+          # One-time cleanup of duplicate repos (only if both exist)
           if [ -d "$HOME/.cocoapods/repos/cocoapods" ] && [ -d "$HOME/.cocoapods/repos/trunk" ]; then
-            echo "Removing duplicate 'cocoapods' repo (keeping 'trunk')..."
+            echo "🧹 Removing duplicate 'cocoapods' repo (one-time cleanup)..."
             rm -rf "$HOME/.cocoapods/repos/cocoapods"
           fi
           
-          echo "✅ CocoaPods repos cleaned"
-          $POD repo list
+          echo "✅ CocoaPods ready"
       
       - name: Install CocoaPods Dependencies
         working-directory: IosProjectFolder
