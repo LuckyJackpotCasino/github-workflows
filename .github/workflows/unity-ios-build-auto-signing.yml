@@ -183,6 +183,11 @@ jobs:
             exit 1
           fi
           
+          # Set DEVELOPER_DIR for this build (fastlane needs full Xcode, not just CLI tools)
+          export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+          echo "✅ Using Xcode at: $DEVELOPER_DIR"
+          xcodebuild -version
+          
           # Setup App Store Connect API key
           mkdir -p ~/private_keys
           echo "${{ env.API_KEY_CONTENT }}" | base64 --decode > ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
