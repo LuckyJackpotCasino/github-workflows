@@ -179,8 +179,9 @@ jobs:
           # Unlock keychain for this build
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Add to search list (but don't change default to avoid conflicts)
+          # Add to search list AND set as default for this build
           security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
+          security default-keychain -s "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
