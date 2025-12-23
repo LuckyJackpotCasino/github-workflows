@@ -104,6 +104,9 @@ jobs:
           echo "📱 Building with Version Code: ${{ steps.version.outputs.version_code }}"
           echo "📦 Game Name: ${{ steps.game_name.outputs.game_name }}"
           
+          # Unique log file per runner/build to prevent conflicts
+          UNITY_LOG="/tmp/unity-build-${{ github.run_id }}-${{ github.run_attempt }}.log"
+          
           # Find Unity installation
           UNITY_PATH="/Applications/Unity/Hub/Editor/${{ inputs.unity_version }}/Unity.app/Contents/MacOS/Unity"
           
@@ -113,6 +116,8 @@ jobs:
             echo "⚠️  Using Unity at: $UNITY_PATH"
           fi
           
+          echo "Log File: $UNITY_LOG"
+          
           # Run Unity build (reads version from env vars BUILD_NUMBER + BUILD_NUMBER_OFFSET)
           "$UNITY_PATH" \
             -quit \
@@ -120,7 +125,7 @@ jobs:
             -nographics \
             -projectPath "$(pwd)" \
             -executeMethod ${{ inputs.build_method }} \
-            -logFile /tmp/unity-build.log
+            -logFile "$UNITY_LOG"
           
           echo "✅ Unity build complete: ${{ steps.game_name.outputs.game_name }}${{ steps.version.outputs.version_code }}.${{ inputs.build_type }}"
         env:
@@ -161,7 +166,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}-unity-log
-          path: /tmp/unity-build.log
+          path: /tmp/unity-build-${{ github.run_id }}-${{ github.run_attempt }}.log
           if-no-files-found: warn
           retention-days: 7
 

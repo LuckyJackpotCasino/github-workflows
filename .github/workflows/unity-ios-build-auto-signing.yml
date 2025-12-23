@@ -106,6 +106,9 @@ jobs:
         run: |
           UNITY_PATH="/Applications/Unity/Hub/Editor/${{ inputs.unity_version }}/Unity.app/Contents/MacOS/Unity"
           
+          # Unique log file per runner/build to prevent conflicts
+          UNITY_LOG="/tmp/unity-build-${{ github.run_id }}-${{ github.run_attempt }}.log"
+          
           # Fallback to any available Unity version if exact version not found
           if [ ! -f "$UNITY_PATH" ]; then
             UNITY_PATH=$(find /Applications/Unity/Hub/Editor -name "Unity" -type f | head -1)
@@ -115,6 +118,7 @@ jobs:
           echo "🎮 Starting Unity iOS build..."
           echo "Build Method: ${{ inputs.build_method }}"
           echo "Build Number: $BUILD_NUMBER"
+          echo "Log File: $UNITY_LOG"
           
           # Run Unity build to generate Xcode project
           "$UNITY_PATH" \
@@ -123,7 +127,7 @@ jobs:
             -nographics \
             -projectPath "$(pwd)" \
             -executeMethod ${{ inputs.build_method }} \
-            -logFile /tmp/unity-build.log
+            -logFile "$UNITY_LOG"
           
           UNITY_EXIT=$?
           
@@ -131,7 +135,7 @@ jobs:
           echo "═══════════════════════════════════════════════════════════"
           echo "Unity Build Log (last 100 lines):"
           echo "═══════════════════════════════════════════════════════════"
-          tail -100 /tmp/unity-build.log
+          tail -100 "$UNITY_LOG"
           echo "═══════════════════════════════════════════════════════════"
           echo ""
           
