@@ -164,16 +164,23 @@ jobs:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: |
-          echo "🔐 Creating CI keychain for codesigning..."
-          CI_KEYCHAIN_PATH="$RUNNER_TEMP/ci-signing.keychain-db"
-          CI_KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          echo "🔐 Setting up CI keychain for codesigning..."
+          # Use shared, persistent keychain for all runners (prevents parallel build conflicts)
+          CI_KEYCHAIN_PATH="$HOME/Library/Keychains/ci-build.keychain-db"
+          CI_KEYCHAIN_PASSWORD="ci-build-secure-password-2024"
           
-          security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || true
-          security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
+          # Create keychain if it doesn't exist
+          if [ ! -f "$CI_KEYCHAIN_PATH" ]; then
+            echo "Creating shared CI keychain..."
+            security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+            security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
+          fi
+          
+          # Unlock keychain for this build
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+          
+          # Add to search list (but don't change default to avoid conflicts)
           security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
-          security default-keychain -s "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
@@ -421,9 +428,9 @@ jobs:
         run: |
           echo "🧹 Cleaning up..."
           
-          # Delete CI keychain
+          # Lock CI keychain (but don't delete - it's shared across builds)
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
-            security delete-keychain "$CI_KEYCHAIN_PATH" || true
+            security lock-keychain "$CI_KEYCHAIN_PATH" || true
           fi
           
           # Clean up files
