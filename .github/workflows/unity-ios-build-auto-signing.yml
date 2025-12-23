@@ -242,9 +242,16 @@ jobs:
           
           # Capture the installed profile UUID + name for later xcodebuild signing settings.
           # (Fastlane prints these but doesn't export them to subsequent steps.)
-          PROFILE_PATH=$(ls -t "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision 2>/dev/null | head -1)
+          # Check both possible locations for provisioning profiles
+          PROFILE_PATH=$(ls -t "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/"*.mobileprovision 2>/dev/null | head -1)
+          if [ -z "$PROFILE_PATH" ]; then
+            PROFILE_PATH=$(ls -t "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision 2>/dev/null | head -1)
+          fi
           if [ -z "$PROFILE_PATH" ]; then
             echo "❌ No provisioning profile found after match!"
+            echo "Checked locations:"
+            echo "  - $HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/"
+            echo "  - $HOME/Library/MobileDevice/Provisioning Profiles/"
             exit 1
           fi
           
