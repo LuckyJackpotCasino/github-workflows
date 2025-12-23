@@ -185,13 +185,14 @@ jobs:
           echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
           echo "✅ CI keychain ready: $CI_KEYCHAIN_PATH"
           
-          # Install fastlane if needed
-          if ! command -v /Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane &> /dev/null; then
-            echo "Installing fastlane..."
-            gem install fastlane --user-install
+          # Use Homebrew-installed fastlane (already installed on build server)
+          if command -v /opt/homebrew/bin/fastlane &> /dev/null; then
+            FASTLANE=/opt/homebrew/bin/fastlane
+            echo "✅ Using Homebrew fastlane: $($FASTLANE --version)"
+          else
+            echo "❌ Fastlane not found! Install it with: brew install fastlane"
+            exit 1
           fi
-          
-          FASTLANE=/Users/stephensullivan/.gem/ruby/3.2.0/bin/fastlane
           
           # Setup App Store Connect API key
           mkdir -p ~/private_keys
