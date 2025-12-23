@@ -270,12 +270,14 @@ jobs:
       
       - name: Setup CocoaPods
         run: |
-          if ! command -v pod &> /dev/null; then
-            echo "Installing CocoaPods..."
-            gem install cocoapods --user-install
-            export PATH="$HOME/.gem/ruby/$(ruby -e 'puts RUBY_VERSION')/bin:$PATH"
+          # Use Homebrew-installed CocoaPods (already installed on build server)
+          if command -v /opt/homebrew/bin/pod &> /dev/null; then
+            POD=/opt/homebrew/bin/pod
+            echo "✅ Using Homebrew CocoaPods: $($POD --version)"
+          else
+            echo "❌ CocoaPods not found! Install it with: brew install cocoapods"
+            exit 1
           fi
-          pod --version
           
           echo "🧹 Cleaning up duplicate CocoaPods repos..."
           if [ -d "$HOME/.cocoapods/repos/cocoapods" ] && [ -d "$HOME/.cocoapods/repos/trunk" ]; then
@@ -284,19 +286,22 @@ jobs:
           fi
           
           echo "✅ CocoaPods repos cleaned"
-          pod repo list
+          $POD repo list
       
       - name: Install CocoaPods Dependencies
         working-directory: IosProjectFolder
         run: |
           export LC_ALL=en_US.UTF-8
           
+          # Use Homebrew-installed pod
+          POD=/opt/homebrew/bin/pod
+          
           # Clean and update pods
-          pod deintegrate || true
+          $POD deintegrate || true
           rm -rf Pods Podfile.lock
           
           # Install fresh
-          pod install
+          $POD install
           
           echo "✅ CocoaPods dependencies installed"
       
