@@ -51,9 +51,9 @@ on:
       IOS_DISTRIBUTION_CERT_PASSWORD:
         required: true
       MATCH_PASSWORD:
-        required: true
+        required: false
       MATCH_GIT_URL:
-        required: true
+        required: false
 
 jobs:
   build:
