@@ -83,19 +83,8 @@ jobs:
           
           echo "✅ Repository ready (Library folder preserved for speed)"
 
-      - name: Ensure Unity is not running (shared workspace safety)
-        run: |
-          # Shared workspace + someone opening the project in the Editor can break CI.
-          # Ensure no Unity Editor instance is holding the project open.
-          echo "🛑 Ensuring Unity is not running..."
-          pkill -f "/Applications/Unity/Hub/Editor" || true
-          pkill -x "Unity" || true
-          pkill -x "Unity Hub" || true
-          pkill -x "UnityPackageManager" || true
-          
-          # Remove any leftover lock file if present
-          rm -f "$(pwd)/Temp/UnityLockfile" 2>/dev/null || true
-          echo "✅ Unity process/lock cleanup complete"
+      # Note: Unity lock file cleanup removed - not needed with persistent workspaces
+      # and causes issues with parallel builds on multiple runners
       
       # No cache needed - Library folder stays on disk between builds!
       
