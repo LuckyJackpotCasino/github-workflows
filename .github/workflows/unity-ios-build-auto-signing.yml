@@ -60,6 +60,7 @@ jobs:
       API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
       API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
       TEAM_ID: ${{ inputs.team_id }}
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
     
     steps:
       - name: Update Repository (Persistent Workspace)
@@ -183,8 +184,7 @@ jobs:
             exit 1
           fi
           
-          # Set DEVELOPER_DIR for this build (fastlane needs full Xcode, not just CLI tools)
-          export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+          # DEVELOPER_DIR is set at job level (env) - verify it's working
           echo "✅ Using Xcode at: $DEVELOPER_DIR"
           xcodebuild -version
           

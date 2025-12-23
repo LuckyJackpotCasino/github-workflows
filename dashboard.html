@@ -15,7 +15,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 10px;
         }
         
         .container {
@@ -30,54 +30,143 @@
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 30px;
+            padding: 15px 20px;
             text-align: center;
         }
         
         .header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
+            font-size: 24px;
+            margin-bottom: 5px;
         }
         
         .header p {
             opacity: 0.9;
-            font-size: 14px;
+            font-size: 12px;
         }
         
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            padding: 30px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            padding: 15px 20px;
             background: #f8f9fa;
         }
         
         .stat-card {
             background: white;
-            padding: 20px;
-            border-radius: 12px;
+            padding: 12px;
+            border-radius: 8px;
             text-align: center;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
         .stat-card .number {
-            font-size: 36px;
+            font-size: 28px;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
         
         .stat-card .label {
             color: #666;
-            font-size: 14px;
+            font-size: 12px;
         }
         
         .stat-card.success .number { color: #10b981; }
         .stat-card.building .number { color: #3b82f6; }
         .stat-card.failed .number { color: #ef4444; }
         .stat-card.pending .number { color: #6b7280; }
+        .stat-card.online .number { color: #10b981; }
+        .stat-card.busy .number { color: #f59e0b; }
+        
+        .runner-section {
+            margin: 15px 20px;
+            padding: 15px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.1) 100%);
+            border-radius: 10px;
+            border: 2px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .runner-section h3 {
+            margin: 0 0 12px 0;
+            color: #374151;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 16px;
+        }
+
+        .runner-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .runner-card {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .runner-card.online {
+            border-left: 4px solid #10b981;
+        }
+
+        .runner-card.offline {
+            border-left: 4px solid #ef4444;
+            opacity: 0.7;
+        }
+
+        .runner-card.busy {
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.05) 0%, rgba(217, 119, 6, 0.05) 100%);
+        }
+
+        .runner-status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .runner-status-dot.online {
+            background: #10b981;
+        }
+
+        .runner-status-dot.busy {
+            background: #f59e0b;
+        }
+
+        .runner-status-dot.offline {
+            background: #ef4444;
+            animation: none;
+        }
+
+        .runner-info {
+            flex: 1;
+        }
+
+        .runner-name {
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 2px;
+            font-size: 13px;
+        }
+
+        .runner-state {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .runner-state.busy {
+            color: #f59e0b;
+            font-weight: 600;
+        }
         
         .dashboard {
-            padding: 30px;
+            padding: 15px 20px;
         }
         
         .build-table {
@@ -94,16 +183,18 @@
         }
         
         .build-table th {
-            padding: 16px;
+            padding: 10px 12px;
             text-align: left;
             font-weight: 600;
             color: #374151;
             border-bottom: 2px solid #e5e7eb;
+            font-size: 13px;
         }
         
         .build-table td {
-            padding: 16px;
+            padding: 10px 12px;
             border-bottom: 1px solid #e5e7eb;
+            font-size: 13px;
         }
         
         .build-table tbody tr:hover {
@@ -218,38 +309,39 @@
         }
 
         .trigger-section {
-            margin: 30px;
-            padding: 25px;
+            margin: 15px 20px;
+            padding: 15px;
             background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
-            border-radius: 12px;
+            border-radius: 10px;
             border: 2px solid rgba(102, 126, 234, 0.2);
         }
 
         .trigger-section h3 {
-            margin: 0 0 15px 0;
+            margin: 0 0 10px 0;
             color: #374151;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+            font-size: 16px;
         }
 
         .trigger-controls {
             display: flex;
-            gap: 12px;
+            gap: 8px;
             flex-wrap: wrap;
             justify-content: center;
         }
 
         .trigger-btn {
-            padding: 12px 24px;
+            padding: 8px 16px;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
+            border-radius: 6px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
             color: white;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
 
         .trigger-btn:hover:not(:disabled) {
@@ -284,8 +376,8 @@
         }
 
         .trigger-single {
-            padding: 6px 12px;
-            font-size: 12px;
+            padding: 5px 10px;
+            font-size: 11px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
 
@@ -295,6 +387,28 @@
             align-items: center;
             flex-wrap: wrap;
         }
+        
+        .cancel-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 2px 6px;
+            margin-left: 6px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+        }
+        
+        .cancel-btn:hover {
+            background: #dc2626;
+            transform: scale(1.1);
+        }
+        
+        .cancel-btn:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
@@ -302,13 +416,13 @@
         <div class="header">
             <h1>🎰 Multi-Studio Build Dashboard</h1>
             <p>Lucky Jackpot Casino + Free Vegas Games - Real-time CI/CD Status</p>
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.2);">
-                <div style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2);">
+                <div style="display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 12px;">
                     <span style="opacity: 0.9;">Last updated: <span id="last-updated-top">Loading...</span></span>
-                    <button class="refresh-btn" onclick="loadData()">
+                    <button class="refresh-btn" onclick="loadData()" style="padding: 6px 12px; font-size: 12px;">
                         🔄 Refresh Now
                     </button>
-                    <span style="opacity: 0.8; font-size: 12px;">Auto-refreshes every 5min</span>
+                    <span style="opacity: 0.8; font-size: 11px;">Auto-refreshes every 5min</span>
                 </div>
             </div>
         </div>
@@ -350,6 +464,32 @@
                 <div class="label">📦 Pending</div>
             </div>
         </div>
+
+        <!-- Runner Status Section -->
+        <div class="runner-section">
+            <h3>🖥️ Build Runners (Mac Studio)</h3>
+            <div class="stats" style="margin-bottom: 20px; padding: 0; background: transparent;">
+                <div class="stat-card online">
+                    <div class="number" id="runner-online">0</div>
+                    <div class="label">🟢 Online</div>
+                </div>
+                <div class="stat-card busy">
+                    <div class="number" id="runner-busy">0</div>
+                    <div class="label">⚡ Busy</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="number" id="runner-idle">0</div>
+                    <div class="label">💤 Idle</div>
+                </div>
+                <div class="stat-card building">
+                    <div class="number" id="runner-total">4</div>
+                    <div class="label">📊 Total</div>
+                </div>
+            </div>
+            <div class="runner-grid" id="runner-grid">
+                <!-- Runners loaded via JavaScript -->
+            </div>
+        </div>
         
         <div class="dashboard">
             <table class="build-table">
@@ -370,8 +510,8 @@
             </table>
         </div>
         
-        <div class="last-updated" style="padding: 15px; font-size: 12px; color: #9ca3af;">
-            <small>⚡ Auto-refresh: 5 minutes | 🔄 Manual refresh: Click button above | ⚠️ Respects GitHub rate limits</small>
+        <div class="last-updated" style="padding: 10px; font-size: 11px; color: #9ca3af;">
+            <small>⚡ Runners: 10s | Local builds: 30s | GitHub API: 5min | 🔄 Manual: Click refresh</small>
         </div>
     </div>
 
@@ -412,12 +552,12 @@
             }
         }
 
-        function getStatusBadge(status, runId) {
+        function getStatusBadge(status, runId, app) {
             const badges = {
                 'success': '<span class="status-badge success">✅ Success</span>',
-                'building': '<span class="status-badge building">🚧 Building</span>',
-                'in_progress': '<span class="status-badge building">🚧 Building</span>',
-                'queued': '<span class="status-badge building">⏳ Queued</span>',
+                'building': `<span class="status-badge building">🚧 Building <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
+                'in_progress': `<span class="status-badge building">🚧 Building <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
+                'queued': `<span class="status-badge building">⏳ Queued <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
                 'failed': '<span class="status-badge failed">❌ Failed</span>',
                 'failure': '<span class="status-badge failed">❌ Failed</span>',
                 'cancelled': '<span class="status-badge pending">⊘ Cancelled</span>',
@@ -438,6 +578,9 @@
             if (isFirstLoad) {
                 tbody.innerHTML = '';
             }
+            
+            // Load runner status first
+            await loadRunnerStatus();
             
             for (let i = 0; i < apps.length; i++) {
                 const app = apps[i];
@@ -467,9 +610,9 @@
                             <small style="color: #9ca3af; font-size: 11px;">${studioLabel}</small>
                         </td>
                         <td><span class="offset-info">${app.aabOffset} / ${app.amazonOffset}</span></td>
-                        <td class="status-ios">${getStatusBadge(status.ios, status.iosRun)}</td>
-                        <td class="status-aab">${getStatusBadge(status.aab, status.aabRun)}</td>
-                        <td class="status-amazon">${getStatusBadge(status.amazon, status.amazonRun)}</td>
+                        <td class="status-ios">${getStatusBadge(status.ios, status.iosRun, app.name)}</td>
+                        <td class="status-aab">${getStatusBadge(status.aab, status.aabRun, app.name)}</td>
+                        <td class="status-amazon">${getStatusBadge(status.amazon, status.amazonRun, app.name)}</td>
                         <td>
                             <div class="action-buttons">
                                 <button onclick="triggerBuild('${app.name}', 'all')" class="trigger-btn trigger-single" title="Build all platforms">🚀</button>
@@ -489,9 +632,9 @@
                         const aabCell = row.querySelector('.status-aab');
                         const amazonCell = row.querySelector('.status-amazon');
                         
-                        if (iosCell) iosCell.innerHTML = getStatusBadge(status.ios, status.iosRun);
-                        if (aabCell) aabCell.innerHTML = getStatusBadge(status.aab, status.aabRun);
-                        if (amazonCell) amazonCell.innerHTML = getStatusBadge(status.amazon, status.amazonRun);
+                        if (iosCell) iosCell.innerHTML = getStatusBadge(status.ios, status.iosRun, app.name);
+                        if (aabCell) aabCell.innerHTML = getStatusBadge(status.aab, status.aabRun, app.name);
+                        if (amazonCell) amazonCell.innerHTML = getStatusBadge(status.amazon, status.amazonRun, app.name);
                     }
                 }
             }
@@ -506,18 +649,76 @@
             document.getElementById('last-updated-top').textContent = timeStr;
         }
 
+        async function loadRunnerStatus() {
+            try {
+                const response = await fetch('http://localhost:8765/api/runners');
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Runner status error:', data.error);
+                    return;
+                }
+                
+                // Update runner stats
+                document.getElementById('runner-total').textContent = data.total || 0;
+                document.getElementById('runner-online').textContent = data.online || 0;
+                document.getElementById('runner-busy').textContent = data.busy || 0;
+                document.getElementById('runner-idle').textContent = data.idle || 0;
+                
+                // Update runner grid
+                const runnerGrid = document.getElementById('runner-grid');
+                runnerGrid.innerHTML = '';
+                
+                if (data.runners && data.runners.length > 0) {
+                    data.runners.forEach(runner => {
+                        const card = document.createElement('div');
+                        const statusClass = runner.status === 'online' ? (runner.busy ? 'busy' : 'online') : 'offline';
+                        
+                        let stateText = '';
+                        if (runner.busy && runner.project) {
+                            stateText = `⚡ Building ${runner.project}`;
+                        } else if (runner.busy) {
+                            stateText = '⚡ Running Job';
+                        } else if (runner.status === 'online') {
+                            stateText = '💤 Idle';
+                        } else {
+                            stateText = '⚠️ Offline';
+                        }
+                        
+                        card.className = `runner-card ${statusClass}`;
+                        card.innerHTML = `
+                            <div class="runner-status-dot ${statusClass}"></div>
+                            <div class="runner-info">
+                                <div class="runner-name">${runner.name}</div>
+                                <div class="runner-state ${runner.busy ? 'busy' : ''}">${stateText}</div>
+                            </div>
+                        `;
+                        runnerGrid.appendChild(card);
+                    });
+                } else {
+                    runnerGrid.innerHTML = '<p style="color: #6b7280; text-align: center; padding: 20px;">No runners found</p>';
+                }
+            } catch (error) {
+                console.error('Failed to load runner status:', error);
+            }
+        }
+
         // Load data on page load
         loadData();
         
-        // Auto-refresh every 5 minutes (300 seconds) to respect rate limits
+        // Auto-refresh build status every 5 minutes (300 seconds) to respect GitHub rate limits
         setInterval(loadData, 300000);
+        
+        // Auto-refresh runner status every 10 seconds (cheap local check)
+        setInterval(loadRunnerStatus, 10000);
+        
+        // Quick poll for local build updates every 30 seconds (fast feedback on active builds)
+        setInterval(() => {
+            loadData();
+        }, 30000);
 
         // Trigger functions
         async function triggerBuild(app, platform) {
-            if (!confirm(`Trigger ${platform.toUpperCase()} build for ${app}?`)) {
-                return;
-            }
-
             const btn = event.target;
             btn.disabled = true;
             const originalText = btn.textContent;
@@ -530,25 +731,38 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Build triggered for ${app} (${platform})!`);
-                    setTimeout(loadData, 3000); // Refresh after 3 seconds
+                    // Show success in button briefly
+                    btn.textContent = '✅';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }, 2000);
+                    
+                    // Refresh status after 3 seconds
+                    setTimeout(loadData, 3000);
                 } else {
-                    alert(`❌ Failed to trigger build: ${result.error}`);
+                    // Show error in button
+                    btn.textContent = '❌';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }, 3000);
+                    console.error('Failed to trigger build:', result.error);
                 }
             } catch (error) {
-                alert(`❌ Error: ${error.message}`);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = originalText;
+                // Show error in button
+                btn.textContent = '❌';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 3000);
+                console.error('Error triggering build:', error);
             }
         }
 
         async function triggerBulk(platform) {
             const platformName = platform === 'all' ? 'All Platforms' : platform.toUpperCase();
-            if (!confirm(`Trigger ${platformName} builds for ALL ${apps.length} apps? This will queue ${apps.length} builds!`)) {
-                return;
-            }
-
+            
             const btn = event.target;
             const originalText = btn.textContent;
             btn.disabled = true;
@@ -561,16 +775,51 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Triggered ${result.count} builds!\n\n${result.apps.join('\n')}`);
-                    setTimeout(loadData, 3000); // Refresh after 3 seconds
+                    // Show success in button
+                    btn.textContent = `✅ Triggered ${result.count}!`;
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }, 3000);
+                    
+                    // Refresh status after 3 seconds
+                    setTimeout(loadData, 3000);
                 } else {
-                    alert(`❌ Failed to trigger builds: ${result.error}`);
+                    // Show error in button
+                    btn.textContent = '❌ Failed';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }, 3000);
+                    console.error('Failed to trigger builds:', result.error);
                 }
             } catch (error) {
-                alert(`❌ Error: ${error.message}`);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = originalText;
+                // Show error in button
+                btn.textContent = '❌ Error';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                }, 3000);
+                console.error('Error triggering bulk builds:', error);
+            }
+        }
+        
+        async function cancelBuild(app, runId) {
+            try {
+                const response = await fetch(`http://localhost:8765/cancel/${app}/${runId}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log(`Build cancelled for ${app}`);
+                    // Refresh status immediately
+                    setTimeout(loadData, 1000);
+                } else {
+                    console.error('Failed to cancel build:', result.error);
+                }
+            } catch (error) {
+                console.error('Error cancelling build:', error);
             }
         }
     </script>

@@ -27,15 +27,15 @@ fi
 echo "✅ Prerequisites check passed"
 echo ""
 
-# Kill any existing server on port 9000
-if lsof -ti :9000 &> /dev/null; then
-    echo "🔄 Stopping existing server on port 9000..."
-    lsof -ti :9000 | xargs kill -9 2>/dev/null
+# Kill any existing server on port 8765
+if lsof -ti :8765 &> /dev/null; then
+    echo "🔄 Stopping existing server on port 8765..."
+    lsof -ti :8765 | xargs kill -9 2>/dev/null
     sleep 1
 fi
 
 # Start the server
-echo "🚀 Starting server on http://localhost:9000"
+echo "🚀 Starting server on http://localhost:8765"
 echo ""
 echo "Dashboard Features:"
 echo "  • Real-time build status for all 9 apps"
@@ -58,9 +58,9 @@ if ps -p $SERVER_PID > /dev/null; then
     
     # Open browser
     if command -v open &> /dev/null; then
-        open http://localhost:9000
+        open http://localhost:8765
     else
-        echo "📱 Open http://localhost:9000 in your browser"
+        echo "📱 Open http://localhost:8765 in your browser"
     fi
     
     # Wait for server process
