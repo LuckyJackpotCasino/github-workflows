@@ -50,6 +50,10 @@ on:
         required: true
       IOS_DISTRIBUTION_CERT_PASSWORD:
         required: true
+      MATCH_PASSWORD:
+        required: true
+      MATCH_GIT_URL:
+        required: true
 
 jobs:
   build:
