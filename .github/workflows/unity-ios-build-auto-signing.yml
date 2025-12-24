@@ -415,6 +415,15 @@ jobs:
           IPA=$(find export -name "*.ipa" | head -1)
           echo "📦 Uploading: $IPA"
           
+          # Ensure AuthKey file exists
+          AUTH_KEY_PATH="$HOME/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8"
+          if [ ! -f "$AUTH_KEY_PATH" ]; then
+            echo "❌ AuthKey file not found at: $AUTH_KEY_PATH"
+            ls -la "$HOME/private_keys/" || echo "private_keys directory doesn't exist"
+            exit 1
+          fi
+          echo "✅ AuthKey file found: $AUTH_KEY_PATH"
+          
           xcrun altool --upload-app \
             --type ios \
             --file "$IPA" \
