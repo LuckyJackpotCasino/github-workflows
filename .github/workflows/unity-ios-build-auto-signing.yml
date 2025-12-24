@@ -360,6 +360,12 @@ jobs:
           # Use unique DerivedData path to prevent parallel build conflicts
           DERIVED_DATA_PATH="$HOME/Library/Developer/Xcode/DerivedData/Build-${{ github.run_id }}-${{ github.run_attempt }}"
           
+          # Clean DerivedData to prevent "Directory not empty" errors from stale build artifacts
+          if [ -d "$DERIVED_DATA_PATH" ]; then
+            echo "🧹 Cleaning stale DerivedData at $DERIVED_DATA_PATH..."
+            rm -rf "$DERIVED_DATA_PATH"
+          fi
+          
           xcodebuild archive \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \

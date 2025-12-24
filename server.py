@@ -188,8 +188,8 @@ def get_build_status(app):
             return cached.copy()
     
     try:
-        # Get recent workflow runs - check more to find latest completed one
-        cmd = f"{GH_CLI} run list --repo LuckyJackpotCasino/{app} --limit 10 --json status,conclusion,databaseId 2>/dev/null"
+        # Get recent workflow runs - check MORE runs to find last actual build per platform
+        cmd = f"{GH_CLI} run list --repo LuckyJackpotCasino/{app} --limit 25 --json status,conclusion,databaseId,number 2>/dev/null"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
         
         if result.returncode != 0 or not result.stdout.strip():
@@ -202,13 +202,24 @@ def get_build_status(app):
             'amazon': 'pending',
             'iosRun': None,
             'aabRun': None,
-            'amazonRun': None
+            'amazonRun': None,
+            'iosRunId': None,  # Store databaseId for API calls
+            'aabRunId': None,
+            'amazonRunId': None
+        }
+        
+        # Track skipped builds as fallback (in case we don't find any non-skipped builds)
+        skipped_fallback = {
+            'ios': None,
+            'aab': None,
+            'amazon': None
         }
         
         # Check each run's jobs to find the most recent status for EACH platform
-        # We want to show the last attempted build for each platform, not just "skipped"
-        for run in runs[:10]:  # Check up to 10 runs
+        # Prefer non-skipped builds, but fall back to skipped if that's all we have
+        for run in runs[:25]:  # Check up to 25 runs
             run_id = run['databaseId']
+            run_number = run.get('number', run_id)  # Use run_number if available, fallback to databaseId
             run_status = run['status']
             
             # Get jobs for this run to see which platforms were built
@@ -229,23 +240,43 @@ def get_build_status(app):
                         if job_name == 'setup':
                             continue
                         
-                        # Skip if job was skipped (we want to find the last ACTUAL build)
-                        if job_conclusion == 'skipped':
+                        # Detect platform from job name
+                        platform = None
+                        if 'build-ios' in job_name or 'ios' in job_name:
+                            platform = 'ios'
+                        elif 'build-aab' in job_name or 'aab' in job_name:
+                            platform = 'aab'
+                        elif 'build-amazon' in job_name or 'amazon' in job_name:
+                            platform = 'amazon'
+                        
+                        if not platform:
                             continue
                         
-                        # Detect platform from job name (handle "build-ios / build" format)
-                        # Only update if we haven't found a status for this platform yet
-                        if ('build-ios' in job_name or 'ios' in job_name) and status['iosRun'] is None:
-                            status['ios'] = job_status or 'unknown'
-                            status['iosRun'] = run_id
-                        elif ('build-aab' in job_name or 'aab' in job_name) and status['aabRun'] is None:
-                            status['aab'] = job_status or 'unknown'
-                            status['aabRun'] = run_id
-                        elif ('build-amazon' in job_name or 'amazon' in job_name) and status['amazonRun'] is None:
-                            status['amazon'] = job_status or 'unknown'
-                            status['amazonRun'] = run_id
+                        # Store as fallback if skipped (only if we don't have a fallback yet)
+                        if job_conclusion == 'skipped':
+                            if skipped_fallback[platform] is None:
+                                skipped_fallback[platform] = {
+                                    'status': 'skipped',
+                                    'run_number': run_number,
+                                    'run_id': run_id
+                                }
+                            continue
+                        
+                        # Store actual build status (only if we haven't found one yet for this platform)
+                        if status[f'{platform}Run'] is None:
+                            status[platform] = job_status or 'unknown'
+                            status[f'{platform}Run'] = run_number  # Display number
+                            status[f'{platform}RunId'] = run_id    # API ID
                 except:
                     pass
+        
+        # Apply fallbacks for platforms where we found no actual builds
+        for platform in ['ios', 'aab', 'amazon']:
+            if status[f'{platform}Run'] is None and skipped_fallback[platform]:
+                fb = skipped_fallback[platform]
+                status[platform] = fb['status']
+                status[f'{platform}Run'] = fb['run_number']
+                status[f'{platform}RunId'] = fb['run_id']
         
         cache[app] = status
         cache_time[app] = time.time()

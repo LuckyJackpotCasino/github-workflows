@@ -587,15 +587,18 @@
             }
         }
 
-        function getStatusBadge(status, runId, app) {
+        function getStatusBadge(status, runNumber, app, runId) {
             // Include run number in badge if available
-            const runLabel = runId ? ` <span class="run-number">#${runId}</span>` : '';
+            const runLabel = runNumber ? ` <span class="run-number">#${runNumber}</span>` : '';
+            
+            // For cancel button, we need the runId (database ID) for API calls
+            const cancelBtn = runId ? `<button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button>` : '';
             
             const badges = {
                 'success': `<span class="status-badge success">✅ Success${runLabel}</span>`,
-                'building': `<span class="status-badge building">🚧 Building${runLabel} <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
-                'in_progress': `<span class="status-badge building">🚧 Building${runLabel} <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
-                'queued': `<span class="status-badge building">⏳ Queued${runLabel} <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
+                'building': `<span class="status-badge building">🚧 Building${runLabel} ${cancelBtn}</span>`,
+                'in_progress': `<span class="status-badge building">🚧 Building${runLabel} ${cancelBtn}</span>`,
+                'queued': `<span class="status-badge building">⏳ Queued${runLabel} ${cancelBtn}</span>`,
                 'failed': `<span class="status-badge failed">❌ Failed${runLabel}</span>`,
                 'failure': `<span class="status-badge failed">❌ Failed${runLabel}</span>`,
                 'cancelled': `<span class="status-badge pending">⊘ Cancelled${runLabel}</span>`,
@@ -648,9 +651,9 @@
                             <small style="color: #9ca3af; font-size: 11px;">${studioLabel}</small>
                         </td>
                         <td><span class="offset-info">${app.aabOffset} / ${app.amazonOffset}</span></td>
-                        <td class="status-ios">${getStatusBadge(status.ios, status.iosRun, app.name)}</td>
-                        <td class="status-aab">${getStatusBadge(status.aab, status.aabRun, app.name)}</td>
-                        <td class="status-amazon">${getStatusBadge(status.amazon, status.amazonRun, app.name)}</td>
+                        <td class="status-ios">${getStatusBadge(status.ios, status.iosRun, app.name, status.iosRunId)}</td>
+                        <td class="status-aab">${getStatusBadge(status.aab, status.aabRun, app.name, status.aabRunId)}</td>
+                        <td class="status-amazon">${getStatusBadge(status.amazon, status.amazonRun, app.name, status.amazonRunId)}</td>
                         <td>
                             <div class="action-buttons">
                                 <button onclick="triggerBuild('${app.name}', 'all')" class="trigger-btn trigger-single" title="Build all platforms">🚀</button>
@@ -670,9 +673,9 @@
                         const aabCell = row.querySelector('.status-aab');
                         const amazonCell = row.querySelector('.status-amazon');
                         
-                        if (iosCell) iosCell.innerHTML = getStatusBadge(status.ios, status.iosRun, app.name);
-                        if (aabCell) aabCell.innerHTML = getStatusBadge(status.aab, status.aabRun, app.name);
-                        if (amazonCell) amazonCell.innerHTML = getStatusBadge(status.amazon, status.amazonRun, app.name);
+                        if (iosCell) iosCell.innerHTML = getStatusBadge(status.ios, status.iosRun, app.name, status.iosRunId);
+                        if (aabCell) aabCell.innerHTML = getStatusBadge(status.aab, status.aabRun, app.name, status.aabRunId);
+                        if (amazonCell) amazonCell.innerHTML = getStatusBadge(status.amazon, status.amazonRun, app.name, status.amazonRunId);
                     }
                 }
             }
