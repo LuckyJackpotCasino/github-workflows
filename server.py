@@ -217,14 +217,19 @@ def get_build_status(app):
         
         # Check each run's jobs to find the most recent status for EACH platform
         # Prefer non-skipped builds, but fall back to skipped if that's all we have
-        for run in runs[:25]:  # Check up to 25 runs
+        # OPTIMIZATION: Stop early if we've found all 3 platforms
+        for run in runs[:10]:  # Reduced from 25 to 10 for performance
             run_id = run['databaseId']
             run_number = run.get('number', run_id)  # Use run_number if available, fallback to databaseId
             run_status = run['status']
             
+            # Early exit if we've already found all 3 platforms (non-skipped)
+            if status['iosRun'] and status['aabRun'] and status['amazonRun']:
+                break
+            
             # Get jobs for this run to see which platforms were built
             jobs_cmd = f"{GH_CLI} run view {run_id} --repo LuckyJackpotCasino/{app} --json jobs 2>/dev/null"
-            jobs_result = subprocess.run(jobs_cmd, shell=True, capture_output=True, text=True, timeout=10)
+            jobs_result = subprocess.run(jobs_cmd, shell=True, capture_output=True, text=True, timeout=5)
             
             if jobs_result.returncode == 0 and jobs_result.stdout.strip():
                 try:

@@ -74,9 +74,14 @@ jobs:
       
       - name: Clean Previous Builds
         run: |
-          echo "🧹 Removing old build files..."
-          rm -f *.apk *.aab
-          echo "✅ Clean workspace ready for new build"
+          echo "🧹 Removing old ${{ inputs.build_type }} files..."
+          if [ "${{ inputs.build_type }}" = "aab" ]; then
+            rm -f *.aab
+            echo "✅ Cleaned old AAB files"
+          else
+            rm -f *.apk
+            echo "✅ Cleaned old APK files"
+          fi
       
       - name: Calculate Version Code  
         id: version
