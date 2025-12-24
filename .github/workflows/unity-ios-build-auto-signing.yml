@@ -201,9 +201,23 @@ jobs:
           xcodebuild -version
           
           # Setup App Store Connect API key
+          if [ -z "${{ env.API_KEY_CONTENT }}" ]; then
+            echo "❌ API_KEY_CONTENT is empty! Check your secrets configuration."
+            exit 1
+          fi
+          
           mkdir -p ~/private_keys
           echo "${{ env.API_KEY_CONTENT }}" | base64 --decode > ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
+          
+          # Verify the key was created successfully
+          if [ ! -s ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8 ]; then
+            echo "❌ Failed to create AuthKey file! The decoded content is empty."
+            echo "This usually means API_KEY_CONTENT is not a valid base64-encoded .p8 file."
+            exit 1
+          fi
+          
           chmod 600 ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
+          echo "✅ AuthKey file created: ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8"
           
           # Create Match configuration
           mkdir -p fastlane

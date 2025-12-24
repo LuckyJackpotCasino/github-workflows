@@ -55,6 +55,25 @@ def get_workflow_file(app):
 def trigger_app_build(app, platform):
     """Trigger a build for an app on a specific platform"""
     try:
+        # First check if there are already queued or running builds
+        check_cmd = f'{GH_CLI} run list --repo LuckyJackpotCasino/{app} --limit 5 --json status,databaseId 2>&1'
+        check_result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True, timeout=10)
+        
+        if check_result.returncode == 0 and check_result.stdout.strip():
+            try:
+                runs = json.loads(check_result.stdout)
+                queued_or_running = [r for r in runs if r.get('status') in ['queued', 'in_progress', 'waiting']]
+                
+                if queued_or_running:
+                    print(f"⏸️  Skipping trigger for {app} - {len(queued_or_running)} builds already queued/running", flush=True)
+                    return {
+                        'success': False, 
+                        'error': f'{len(queued_or_running)} build(s) already queued/running',
+                        'skipped': True
+                    }
+            except json.JSONDecodeError:
+                pass  # If we can't parse, proceed with trigger
+        
         workflow = get_workflow_file(app)
         
         # Map platform to build_platforms input
@@ -70,6 +89,7 @@ def trigger_app_build(app, platform):
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
         
         if result.returncode == 0:
+            print(f"✅ Triggered {app} ({platform})", flush=True)
             # Clear cache for this app so next status check fetches fresh data
             if app in cache:
                 del cache[app]
@@ -100,146 +120,23 @@ def cancel_app_build(app, run_id):
         return {'success': False, 'error': str(e)}
 
 def check_local_build_status(app):
-    """Check local runner work directories for real-time build status"""
+    """Check if this app is currently building on any runner"""
+    print(f"[LOCAL-CHECK] Checking if {app} is building...", flush=True)
     try:
-        base_dir = os.path.expanduser('~/actions-runners')
-        status_updates = {}
+        # Use runner status to determine if app is actively building
+        runner_data = get_runner_status()
         
-        # Check all runners for this app
-        for runner_name in os.listdir(base_dir):
-            if not runner_name.startswith('mac-studio-runner'):
-                continue
-                
-            runner_dir = os.path.join(base_dir, runner_name)
-            work_dir = os.path.join(runner_dir, '_work', app, app)
-            
-            if not os.path.exists(work_dir):
-                continue
-            
-            # Check if runner is actively building THIS app
-            diag_dir = os.path.join(runner_dir, '_diag')
-            if os.path.exists(diag_dir):
-                worker_logs = [f for f in os.listdir(diag_dir) if f.startswith('Worker_')]
-                if worker_logs:
-                    latest_log = max(worker_logs, key=lambda f: os.path.getmtime(os.path.join(diag_dir, f)))
-                    log_path = os.path.join(diag_dir, latest_log)
-                    mtime = os.path.getmtime(log_path)
-                    
-                    # Check log even if not recently modified to catch failures
-                    try:
-                        with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                            log_lines = f.readlines()[-1000:]  # Check last 1000 lines
-                            log_content = ''.join(log_lines)
-                            
-                            # Check if this log mentions our app
-                            if app in log_content or f'/{app}/' in log_content:
-                                # Detect platform from job name
-                                platform = None
-                                if 'Build-iOS' in log_content or 'unity-ios-build' in log_content:
-                                    platform = 'ios'
-                                elif 'Build-AAB' in log_content or 'unity-android-build' in log_content:
-                                    if 'Build-Amazon' in log_content:
-                                        platform = 'amazon'
-                                    else:
-                                        platform = 'aab'
-                                
-                                if platform:
-                                    # Check for failure indicators first
-                                    if 'Job failed' in log_content or 'Process completed with exit code' in log_content:
-                                        # Look for non-zero exit codes
-                                        if 'exit code 1' in log_content or 'exit code 143' in log_content or 'Error:' in log_content:
-                                            status_updates[platform] = 'failure'
-                                            print(f"[DEBUG] Detected {platform} failure for {app} in worker log", flush=True)
-                                    # If recently modified, it's in progress
-                                    elif time.time() - mtime < 120:
-                                        # Only mark in_progress if we haven't detected failure
-                                        if platform not in status_updates:
-                                            status_updates[platform] = 'in_progress'
-                    except Exception as e:
-                        print(f"Error reading worker log: {e}", flush=True)
-            
-            # Check for recent Unity log files
-            unity_logs = []
-            for root, dirs, files in os.walk('/tmp'):
-                for f in files:
-                    if f.startswith('unity-build-') and f.endswith('.log'):
-                        log_path = os.path.join(root, f)
-                        try:
-                            mtime = os.path.getmtime(log_path)
-                            # Only check logs modified in last 30 minutes
-                            if time.time() - mtime < 1800:
-                                unity_logs.append((log_path, mtime))
-                        except:
-                            pass
-            
-            # Check most recent Unity log
-            if unity_logs:
-                latest_log = max(unity_logs, key=lambda x: x[1])[0]
-                try:
-                    with open(latest_log, 'r') as f:
-                        log_content = f.read()
-                        
-                        # Check for build completion indicators
-                        if 'Build completed successfully' in log_content or 'Build succeeded' in log_content:
-                            # Determine platform from log
-                            if 'BuildiOS' in log_content or 'iOS' in log_content:
-                                status_updates['ios'] = 'success'
-                            elif 'BuildGooglePlay' in log_content or 'AAB' in log_content:
-                                status_updates['aab'] = 'success'
-                            elif 'BuildAmazon' in log_content or 'APK' in log_content:
-                                status_updates['amazon'] = 'success'
-                        
-                        # Check for build failures
-                        elif 'Build failed' in log_content or 'Error building Player' in log_content:
-                            if 'BuildiOS' in log_content or 'iOS' in log_content:
-                                status_updates['ios'] = 'failure'
-                            elif 'BuildGooglePlay' in log_content:
-                                status_updates['aab'] = 'failure'
-                            elif 'BuildAmazon' in log_content:
-                                status_updates['amazon'] = 'failure'
-                        
-                        # Check for builds in progress
-                        elif 'Starting Unity' in log_content or 'Building Player' in log_content:
-                            # Check file modification time - if modified in last 2 minutes, it's active
-                            mtime = os.path.getmtime(latest_log)
-                            if time.time() - mtime < 120:
-                                if 'BuildiOS' in log_content or 'iOS' in log_content:
-                                    status_updates['ios'] = 'in_progress'
-                                elif 'BuildGooglePlay' in log_content:
-                                    status_updates['aab'] = 'in_progress'
-                                elif 'BuildAmazon' in log_content:
-                                    status_updates['amazon'] = 'in_progress'
-                except Exception as e:
-                    print(f"Error reading Unity log {latest_log}: {e}", flush=True)
-            
-            # Check for output artifacts (definitive proof of success)
-            ios_project = os.path.join(work_dir, 'IosProjectFolder')
-            if os.path.exists(ios_project):
-                # Check if modified recently (last 30 min)
-                mtime = os.path.getmtime(ios_project)
-                if time.time() - mtime < 1800:
-                    # Only mark as success if not currently building
-                    if 'ios' not in status_updates or status_updates['ios'] != 'in_progress':
-                        status_updates['ios'] = 'success'
-            
-            # Check for Android builds
-            for ext in ['*.aab', '*.apk']:
-                import glob
-                artifacts = glob.glob(os.path.join(work_dir, ext))
-                for artifact in artifacts:
-                    mtime = os.path.getmtime(artifact)
-                    if time.time() - mtime < 1800:
-                        if ext == '*.aab':
-                            if 'aab' not in status_updates or status_updates['aab'] != 'in_progress':
-                                status_updates['aab'] = 'success'
-                        elif ext == '*.apk':
-                            if 'amazon' not in status_updates or status_updates['amazon'] != 'in_progress':
-                                status_updates['amazon'] = 'success'
+        for runner in runner_data.get('runners', []):
+            if runner.get('busy') and runner.get('project') == app:
+                print(f"[LOCAL] ⚡ {app} is BUILDING on {runner.get('name')}", flush=True)
+                # App is actively building - mark iOS as in_progress (assume iOS build)
+                # TODO: Could check workflow file or job details for actual platform
+                return {'ios': 'in_progress'}
         
-        return status_updates if status_updates else None
-        
+        print(f"[LOCAL-CHECK] {app} is not currently building on any runner", flush=True)
+        return None
     except Exception as e:
-        print(f"Error checking local build status for {app}: {e}", flush=True)
+        print(f"[LOCAL-CHECK] Error checking local status for {app}: {e}", flush=True)
         return None
 
 def get_build_status(app):
@@ -249,50 +146,50 @@ def get_build_status(app):
     # First check local runner status for instant feedback
     local_status = check_local_build_status(app)
     
+    # If local shows in_progress, ALWAYS return that immediately (don't use cache)
+    if local_status and any(status == 'in_progress' for status in local_status.values()):
+        print(f"[OVERRIDE] {app} is building locally - showing in_progress", flush=True)
+        # Still fetch from cache for other platforms, but override in_progress ones
+        if app in cache:
+            cached = cache[app].copy()
+            for platform, local_state in local_status.items():
+                if local_state == 'in_progress':
+                    cached[platform] = 'in_progress'
+            return cached
+        # No cache, return local status with pending for others
+        result = {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending'}
+        result.update(local_status)
+        return result
+    
     # If rate limited, return stale cache with indicator
     if time.time() < rate_limited_until:
         if app in cache:
             status = cache[app].copy()
             status['rate_limited'] = True
-            # Merge local status if available - local status overrides stale cache
-            if local_status:
-                for platform, local_state in local_status.items():
-                    if local_state == 'in_progress':
-                        # Currently building - override old status
-                        status[platform] = 'in_progress'
-                    elif local_state in ['success', 'failure']:
-                        # New completion status
-                        status[platform] = local_state
             return status
         return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'rate_limited': True}
     
-    # If local status shows failure, force cache refresh immediately
-    force_refresh = False
-    if local_status:
-        for platform, state in local_status.items():
-            if state == 'failure':
-                force_refresh = True
-                print(f"[DEBUG] Forcing cache refresh for {app} due to local failure detection", flush=True)
-                break
-    
-    # Return cache if less than CACHE_DURATION old, but merge local status
-    if app in cache and app in cache_time and not force_refresh:
-        if time.time() - cache_time[app] < CACHE_DURATION:
-            cached = cache[app].copy()
-            if local_status:
-                # Local status takes FULL precedence - if building now, override old status
-                for platform, local_state in local_status.items():
-                    if local_state == 'in_progress':
-                        # If currently building, always show in_progress (not old success/failure)
-                        cached[platform] = 'in_progress'
-                    elif local_state in ['success', 'failure']:
-                        # Update with new completion status
-                        cached[platform] = local_state
-            return cached
+    # Smart cache: use cache UNLESS status suggests it might be stale
+    if app in cache and app in cache_time:
+        cache_age = time.time() - cache_time[app]
+        
+        # If cache shows "queued" or "in_progress", refresh more frequently (30 sec)
+        # If cache shows stable status (success/failure), use full cache duration (5 min)
+        cached = cache[app]
+        has_unstable_status = any(
+            status in ['queued', 'in_progress', 'waiting'] 
+            for status in [cached.get('ios'), cached.get('aab'), cached.get('amazon')]
+        )
+        
+        cache_duration = 30 if has_unstable_status else CACHE_DURATION
+        
+        if cache_age < cache_duration:
+            print(f"[CACHE] Using {cache_age:.0f}s old cache for {app} (max: {cache_duration}s)", flush=True)
+            return cached.copy()
     
     try:
-        # Get recent workflow runs (gh CLI uses authenticated token automatically)
-        cmd = f"{GH_CLI} run list --repo LuckyJackpotCasino/{app} --limit 3 --json status,conclusion,databaseId 2>/dev/null"
+        # Get recent workflow runs - check more to find latest completed one
+        cmd = f"{GH_CLI} run list --repo LuckyJackpotCasino/{app} --limit 10 --json status,conclusion,databaseId 2>/dev/null"
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
         
         if result.returncode != 0 or not result.stdout.strip():
@@ -308,9 +205,11 @@ def get_build_status(app):
             'amazonRun': None
         }
         
-        # Check each run's jobs to determine what platform was built
-        for run in runs[:3]:  # Check last 3 runs
+        # Check each run's jobs to find the most recent status for EACH platform
+        # We want to show the last attempted build for each platform, not just "skipped"
+        for run in runs[:10]:  # Check up to 10 runs
             run_id = run['databaseId']
+            run_status = run['status']
             
             # Get jobs for this run to see which platforms were built
             jobs_cmd = f"{GH_CLI} run view {run_id} --repo LuckyJackpotCasino/{app} --json jobs 2>/dev/null"
@@ -324,12 +223,18 @@ def get_build_status(app):
                     for job in jobs:
                         job_name = job.get('name', '').lower()
                         job_status = job.get('conclusion') if job.get('status') == 'completed' else job.get('status')
+                        job_conclusion = job.get('conclusion')
                         
                         # Skip setup jobs
                         if job_name == 'setup':
                             continue
                         
+                        # Skip if job was skipped (we want to find the last ACTUAL build)
+                        if job_conclusion == 'skipped':
+                            continue
+                        
                         # Detect platform from job name (handle "build-ios / build" format)
+                        # Only update if we haven't found a status for this platform yet
                         if ('build-ios' in job_name or 'ios' in job_name) and status['iosRun'] is None:
                             status['ios'] = job_status or 'unknown'
                             status['iosRun'] = run_id
@@ -412,16 +317,28 @@ def get_runner_status():
                                             with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
                                                 # Read last 1000 lines to find job info
                                                 lines = f.readlines()[-1000:]
+                                                
+                                                # Get valid app names
+                                                app_names = [app['name'] for app in apps]
+                                                
                                                 for line in lines:
-                                                    # Look for repository info in logs
-                                                    if 'luckyjackpotcasino' in line.lower():
+                                                    # Look for repository info in logs - be more specific
+                                                    if 'LuckyJackpotCasino/' in line:
                                                         # Extract repo name from URLs like "LuckyJackpotCasino/kenocasino"
                                                         import re
-                                                        match = re.search(r'LuckyJackpotCasino/([a-zA-Z0-9_-]+)', line, re.IGNORECASE)
+                                                        # Match only after LuckyJackpotCasino/ and before space, slash, or end
+                                                        match = re.search(r'LuckyJackpotCasino/([a-z0-9\-]+)(?:\s|/|$|\.git)', line, re.IGNORECASE)
                                                         if match:
-                                                            project_name = match.group(1)
-                                                            print(f"[DEBUG] Found project in log: {project_name}", flush=True)
-                                                            break
+                                                            candidate = match.group(1)
+                                                            # Validate it's a real app name from our apps list
+                                                            if candidate in app_names:
+                                                                project_name = candidate
+                                                                print(f"[DEBUG] Found project in log: {project_name}", flush=True)
+                                                                break
+                                                
+                                                # If we found a valid project, stop searching
+                                                if project_name:
+                                                    break
                                         except Exception as log_err:
                                                             print(f"Error reading log {log_path}: {log_err}", flush=True)
                             
@@ -535,6 +452,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-type', 'application/json')
                 self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
                 self.end_headers()
                 self.wfile.write(json.dumps(status).encode())
             else:
@@ -550,6 +470,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.end_headers()
             self.wfile.write(json.dumps(results).encode())
             return
@@ -561,8 +484,46 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header('Content-type', 'application/json')
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.end_headers()
             self.wfile.write(json.dumps(runner_status).encode())
+            return
+        
+        # API: Get agent activity (last 20 lines of log)
+        if parsed_path.path in ['/agent', '/api/agent']:
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ['tail', '-50', '/tmp/buildbot-agent.log'],
+                    capture_output=True, text=True, timeout=5
+                )
+                
+                # Check if agent is running
+                ps_result = subprocess.run(
+                    ['pgrep', '-f', 'python3 build-fix-agent.py'],
+                    capture_output=True, text=True, timeout=5
+                )
+                is_running = ps_result.returncode == 0
+                
+                agent_data = {
+                    'running': is_running,
+                    'log': result.stdout if result.returncode == 0 else '',
+                    'pid': ps_result.stdout.strip() if is_running else None
+                }
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(agent_data).encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': str(e)}).encode())
             return
         
         self.send_error(404, 'Not found')
@@ -646,6 +607,36 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(json.dumps(result).encode())
                 return
+        
+        # Restart runner
+        if parsed_path.path.startswith('/restart-runner/'):
+            runner_id = parsed_path.path.split('/restart-runner/')[1]
+            
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ['launchctl', 'kickstart', '-k', f'gui/{os.getuid()}/actions.runner.LuckyJackpotCasino.{runner_id}'],
+                    capture_output=True, text=True, timeout=10
+                )
+                
+                response = {
+                    'success': result.returncode == 0,
+                    'runner': runner_id,
+                    'message': f'Restarted {runner_id}' if result.returncode == 0 else result.stderr
+                }
+                
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(response).encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode())
+            return
         
         self.send_error(404, 'Not found')
     

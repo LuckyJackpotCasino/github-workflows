@@ -110,6 +110,26 @@
             align-items: center;
             gap: 10px;
         }
+        
+        .restart-btn {
+            margin-left: auto;
+            background: #f3f4f6;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .restart-btn:hover {
+            background: #e5e7eb;
+            transform: rotate(90deg);
+        }
+        
+        .restart-btn:active {
+            background: #d1d5db;
+        }
 
         .runner-card.online {
             border-left: 4px solid #10b981;
@@ -230,6 +250,13 @@
         .status-badge.pending {
             background: #f3f4f6;
             color: #4b5563;
+        }
+        
+        .run-number {
+            font-size: 10px;
+            opacity: 0.7;
+            margin-left: 4px;
+            font-weight: 500;
         }
         
         @keyframes pulse {
@@ -491,6 +518,14 @@
             </div>
         </div>
         
+        <!-- Agent Activity Section -->
+        <div class="runner-section" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(168, 85, 247, 0.1) 100%); border-color: rgba(99, 102, 241, 0.2);">
+            <h3>🤖 Auto-Fix Agent <span id="agent-status" style="font-size: 12px; margin-left: 10px;"></span></h3>
+            <div id="agent-activity" style="background: white; border-radius: 8px; padding: 12px; font-family: 'Monaco', 'Courier New', monospace; font-size: 11px; max-height: 200px; overflow-y: auto; line-height: 1.6;">
+                Loading agent activity...
+            </div>
+        </div>
+        
         <div class="dashboard">
             <table class="build-table">
                 <thead>
@@ -536,7 +571,7 @@
         async function getBuildStatus(app) {
             try {
                 // This requires a local server to fetch GitHub API
-                const response = await fetch(`http://localhost:8765/status/${app}`);
+                const response = await fetch(`http://localhost:8765/status/${app}?t=${Date.now()}`);
                 const data = await response.json();
                 return data;
             } catch (error) {
@@ -553,15 +588,18 @@
         }
 
         function getStatusBadge(status, runId, app) {
+            // Include run number in badge if available
+            const runLabel = runId ? ` <span class="run-number">#${runId}</span>` : '';
+            
             const badges = {
-                'success': '<span class="status-badge success">✅ Success</span>',
-                'building': `<span class="status-badge building">🚧 Building <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
-                'in_progress': `<span class="status-badge building">🚧 Building <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
-                'queued': `<span class="status-badge building">⏳ Queued <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
-                'failed': '<span class="status-badge failed">❌ Failed</span>',
-                'failure': '<span class="status-badge failed">❌ Failed</span>',
-                'cancelled': '<span class="status-badge pending">⊘ Cancelled</span>',
-                'skipped': '<span class="status-badge pending">⏭️ Skipped</span>',
+                'success': `<span class="status-badge success">✅ Success${runLabel}</span>`,
+                'building': `<span class="status-badge building">🚧 Building${runLabel} <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
+                'in_progress': `<span class="status-badge building">🚧 Building${runLabel} <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
+                'queued': `<span class="status-badge building">⏳ Queued${runLabel} <button onclick="cancelBuild('${app}', ${runId})" class="cancel-btn" title="Cancel build">✖</button></span>`,
+                'failed': `<span class="status-badge failed">❌ Failed${runLabel}</span>`,
+                'failure': `<span class="status-badge failed">❌ Failed${runLabel}</span>`,
+                'cancelled': `<span class="status-badge pending">⊘ Cancelled${runLabel}</span>`,
+                'skipped': `<span class="status-badge pending">⏭️ Skipped${runLabel}</span>`,
                 'pending': '<span class="status-badge pending">– Not Run</span>',
                 'unknown': '<span class="status-badge pending">? Unknown</span>'
             };
@@ -651,7 +689,7 @@
 
         async function loadRunnerStatus() {
             try {
-                const response = await fetch('http://localhost:8765/api/runners');
+                const response = await fetch(`http://localhost:8765/api/runners?t=${Date.now()}`);
                 const data = await response.json();
                 
                 if (data.error) {
@@ -692,6 +730,9 @@
                                 <div class="runner-name">${runner.name}</div>
                                 <div class="runner-state ${runner.busy ? 'busy' : ''}">${stateText}</div>
                             </div>
+                            <button class="restart-btn" onclick="restartRunner('${runner.name}')" title="Restart runner">
+                                🔄
+                            </button>
                         `;
                         runnerGrid.appendChild(card);
                     });
@@ -706,8 +747,8 @@
         // Load data on page load
         loadData();
         
-        // Auto-refresh build status every 5 minutes (300 seconds) to respect GitHub rate limits
-        setInterval(loadData, 300000);
+        // Auto-refresh build status every 30 seconds for responsive updates
+        setInterval(loadData, 30000);
         
         // Auto-refresh runner status every 10 seconds (cheap local check)
         setInterval(loadRunnerStatus, 10000);
@@ -740,6 +781,13 @@
                     
                     // Refresh status after 3 seconds
                     setTimeout(loadData, 3000);
+                } else if (result.skipped) {
+                    // Build already queued
+                    btn.textContent = '⏸️ Queued';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.disabled = false;
+                    }, 3000);
                 } else {
                     // Show error in button
                     btn.textContent = '❌';
@@ -816,10 +864,31 @@
                     // Refresh status immediately
                     setTimeout(loadData, 1000);
                 } else {
-                    console.error('Failed to cancel build:', result.error);
+                    console.error(`Failed to cancel build: ${result.error}`);
                 }
             } catch (error) {
                 console.error('Error cancelling build:', error);
+            }
+        }
+        
+        async function restartRunner(runnerName) {
+            try {
+                const response = await fetch(`http://localhost:8765/restart-runner/${runnerName}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    console.log(`✅ Restarted ${runnerName}`);
+                    // Refresh runner status immediately
+                    setTimeout(loadRunnerStatus, 2000);
+                } else {
+                    console.error(`Failed to restart runner: ${result.message || result.error}`);
+                    alert(`Failed to restart ${runnerName}: ${result.message || result.error}`);
+                }
+            } catch (error) {
+                console.error('Error restarting runner:', error);
+                alert(`Error restarting ${runnerName}: ${error.message}`);
             }
         }
     </script>
