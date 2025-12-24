@@ -181,11 +181,17 @@ def get_build_status(app):
             for status in [cached.get('ios'), cached.get('aab'), cached.get('amazon')]
         )
         
-        cache_duration = 30 if has_unstable_status else CACHE_DURATION
-        
-        if cache_age < cache_duration:
-            print(f"[CACHE] Using {cache_age:.0f}s old cache for {app} (max: {cache_duration}s)", flush=True)
-            return cached.copy()
+        # BUGFIX: If cache shows "in_progress" but nothing is building locally, force immediate refresh
+        # This fixes stale "building" status when build already completed/failed/skipped
+        if has_unstable_status and not local_status:
+            print(f"[CACHE-BUST] {app} shows in_progress in cache but not building locally - forcing refresh", flush=True)
+            # Continue to fresh API check below
+        else:
+            cache_duration = 30 if has_unstable_status else CACHE_DURATION
+            
+            if cache_age < cache_duration:
+                print(f"[CACHE] Using {cache_age:.0f}s old cache for {app} (max: {cache_duration}s)", flush=True)
+                return cached.copy()
     
     try:
         # Get recent workflow runs - check MORE runs to find last actual build per platform

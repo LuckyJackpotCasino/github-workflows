@@ -135,6 +135,33 @@ jobs:
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
           echo "✅ Cleanup complete"
       
+      - name: Find and Move AAB/APK
+        run: |
+          echo "🔍 Searching for ${{ inputs.build_type }} file..."
+          
+          # Unity 2023+ creates files in Library/Bee/Android/Prj/IL2CPP/Gradle/launcher/build/outputs/
+          # Older Unity versions may create them in the root
+          
+          if [ "${{ inputs.build_type }}" = "aab" ]; then
+            BUILD_FILE=$(find . -name "*.aab" -not -path "*/intermediates/*" | head -1)
+          else
+            BUILD_FILE=$(find . -name "*.apk" -not -path "*/intermediates/*" | head -1)
+          fi
+          
+          if [ -z "$BUILD_FILE" ]; then
+            echo "❌ No ${{ inputs.build_type }} file found!"
+            exit 1
+          fi
+          
+          echo "✅ Found: $BUILD_FILE"
+          
+          # Move to root if not already there
+          if [ "$(dirname "$BUILD_FILE")" != "." ]; then
+            echo "📦 Moving build file to root directory..."
+            mv "$BUILD_FILE" "./$(basename "$BUILD_FILE")"
+            echo "✅ Moved to: ./$(basename "$BUILD_FILE")"
+          fi
+      
       - name: Upload to Google Play
         if: inputs.build_type == 'aab'
         uses: r0adkll/upload-google-play@v1
