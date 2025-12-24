@@ -327,8 +327,12 @@ def get_runner_status():
                         result = subprocess.run(status_cmd, shell=True, capture_output=True, text=True, timeout=5)
                         output = result.stdout.lower()
                         
+                        print(f"[RUNNER-DEBUG] {item}: output='{output[:100]}'", flush=True)
+                        
                         # Parse status from output
                         is_running = 'started:' in output or 'running' in output
+                        
+                        print(f"[RUNNER-DEBUG] {item}: is_running={is_running}", flush=True)
                         
                         # Check if busy and get project name
                         is_busy = False
@@ -449,6 +453,8 @@ def get_runner_status():
             'completed_jobs': completed_jobs  # Include list of just-completed jobs
         }
         
+        print(f"[RUNNER-RESULT] Returning {total} runners: {online} online, {busy} busy", flush=True)
+        
         return result
         
     except Exception as e:
@@ -474,6 +480,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     content = f.read()
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html')
+                self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+                self.send_header('Pragma', 'no-cache')
+                self.send_header('Expires', '0')
                 self.end_headers()
                 self.wfile.write(content.encode())
             except FileNotFoundError:

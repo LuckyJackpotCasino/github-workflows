@@ -72,17 +72,6 @@ jobs:
       
       # No cache needed - Library folder stays on disk between builds!
       
-      - name: Clean Previous Builds
-        run: |
-          echo "🧹 Removing old ${{ inputs.build_type }} files..."
-          if [ "${{ inputs.build_type }}" = "aab" ]; then
-            rm -f *.aab
-            echo "✅ Cleaned old AAB files"
-          else
-            rm -f *.apk
-            echo "✅ Cleaned old APK files"
-          fi
-      
       - name: Calculate Version Code  
         id: version
         run: |
@@ -174,4 +163,16 @@ jobs:
           path: /tmp/unity-build-${{ github.run_id }}-${{ github.run_attempt }}.log
           if-no-files-found: warn
           retention-days: 7
+      
+      - name: Cleanup Build Files
+        if: always()
+        run: |
+          echo "🧹 Cleaning up build files..."
+          if [ "${{ inputs.build_type }}" = "aab" ]; then
+            rm -f *.aab
+            echo "✅ Cleaned AAB files"
+          else
+            rm -f *.apk
+            echo "✅ Cleaned APK files"
+          fi
 
