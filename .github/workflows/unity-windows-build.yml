@@ -73,8 +73,6 @@ jobs:
 
       - name: Update Repository (Persistent Workspace)
         shell: pwsh
-        env:
-          GIT_SSH_COMMAND: 'ssh -i "$env:USERPROFILE\.ssh\id_ed25519" -o StrictHostKeyChecking=no'
         run: |
           $gitconfig = Join-Path $env:USERPROFILE '.gitconfig'
           if ((Test-Path $gitconfig) -and ((Get-Content $gitconfig -Raw) -match 'insteadOf')) {
@@ -84,15 +82,6 @@ jobs:
 
           $keyFile = (Join-Path $env:USERPROFILE '.ssh\id_ed25519') -replace '\\','/'
           $env:GIT_SSH_COMMAND = "ssh -i `"$keyFile`" -o StrictHostKeyChecking=no"
-          Write-Host "GIT_SSH_COMMAND: ssh -i $keyFile -o StrictHostKeyChecking=no"
-
-          Write-Host "--- Key file info ---"
-          Write-Host "Exists: $(Test-Path $keyFile)"
-          $keyContent = Get-Content $keyFile -Raw
-          Write-Host "Length: $($keyContent.Length)"
-          Write-Host "Starts with: $($keyContent.Substring(0, [Math]::Min(40, $keyContent.Length)))"
-          Write-Host "--- SSH test ---"
-          & ssh -vT -i $keyFile -o StrictHostKeyChecking=no git@github.com 2>&1 | Select-Object -Last 15 | ForEach-Object { Write-Host $_ }
 
           if (-not (Test-Path ".git")) {
             Write-Host "First build - cloning repository..."
@@ -124,6 +113,21 @@ jobs:
           $gameName = $repoName.Split('/')[-1]
           "game_name=$gameName" | Out-File -Append $env:GITHUB_OUTPUT
           Write-Host "Game Name: $gameName"
+
+      - name: Prepare Unity Environment
+        shell: pwsh
+        run: |
+          $cacheDirs = @(
+            (Join-Path $env:LOCALAPPDATA 'Unity\Caches'),
+            (Join-Path $env:APPDATA 'Unity'),
+            (Join-Path $env:LOCALAPPDATA 'Unity')
+          )
+          foreach ($dir in $cacheDirs) {
+            if (-not (Test-Path $dir)) {
+              New-Item -ItemType Directory -Path $dir -Force | Out-Null
+              Write-Host "Created: $dir"
+            }
+          }
 
       - name: Build Windows Standalone
         shell: pwsh
