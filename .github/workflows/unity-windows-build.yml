@@ -85,6 +85,11 @@ jobs:
 
           if (-not (Test-Path ".git")) {
             Write-Host "First build - cloning repository..."
+            $items = Get-ChildItem -Force -ErrorAction SilentlyContinue
+            if ($items) {
+              Write-Host "Cleaning stale workspace files..."
+              $items | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
             git clone --depth 1 --recurse-submodules --shallow-submodules "git@github.com:${{ inputs.repository }}.git" .
           } else {
             Write-Host "Workspace exists - updating..."
