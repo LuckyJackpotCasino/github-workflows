@@ -65,8 +65,10 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:SSH_KEY)) {
             Write-Host "WARNING: GH_SSH_KEY secret is empty — submodules using SSH will fail"
           } else {
-            [IO.File]::WriteAllText((Join-Path $sshDir 'id_ed25519'), ($env:SSH_KEY -replace "`r`n","`n"))
-            Write-Host "SSH key written to $sshDir\id_ed25519"
+            $keyPath = Join-Path $sshDir 'id_ed25519'
+            $keyText = ($env:SSH_KEY -replace "`r`n","`n" -replace "`r","`n").Trim() + "`n"
+            [IO.File]::WriteAllBytes($keyPath, [Text.Encoding]::ASCII.GetBytes($keyText))
+            Write-Host "SSH key written to $keyPath ($(([IO.File]::ReadAllBytes($keyPath)).Length) bytes, no BOM)"
           }
 
       - name: Update Repository (Persistent Workspace)
