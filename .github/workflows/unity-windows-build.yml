@@ -52,14 +52,22 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.GH_SSH_KEY }}
         run: |
-          $sshDir = "$env:USERPROFILE\.ssh"
+          $ErrorActionPreference = 'Continue'
+          $sshDir = Join-Path $env:USERPROFILE '.ssh'
           New-Item -ItemType Directory -Path $sshDir -Force | Out-Null
 
-          ssh-keyscan github.com 2>$null | Out-File "$sshDir\known_hosts" -Encoding ascii
+          @(
+            'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl'
+            'github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg='
+            'github.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZKyft6o1RF2i2FPYt9/e7WNaEKWsHisj0i/xykkr2q+jisMfJYnd4W9BBUg3oVB9ogT0hXayYdTfbCGmPqvFEiG/ygOvH8TBLBgaREGEjqLMwKbGFEBntREQHeMBEnz5BG6W+aL1GRRG3F0Lg0Ez0bIPEec4vpNqBPEfcjKGDAsqBreqmMJkp/e8VN0VnNKROS0Co/6HFnidGFCSAR0OB5T2oaXAGHadQHgz8e8MlPzpUPaYGIBuHI6iBh3bIjbBE+2H3TF4RM0e+0vR/EpWNAjSIJKKO1VWzUA+oV5lGhBBqnXeELmmF+PVQxfFQ5ZD40TIrk0T8pVMG4sCqEMNq4t7k4b0QfBzMDY7nMaVIy6HAzFm16Wp4gRdNfCtmrcNLtwCpjYud/DRv/NjaBc/8smRc/TIKI+O0RhbFmMMjGGQk5ARk2P8wk0Qs='
+          ) | Set-Content (Join-Path $sshDir 'known_hosts') -Encoding ascii
 
-          $env:SSH_KEY | Out-File "$sshDir\id_ed25519" -Encoding ascii -NoNewline
-          # Ensure proper line ending on key file
-          (Get-Content "$sshDir\id_ed25519" -Raw).Replace("`r`n","`n") | Set-Content "$sshDir\id_ed25519" -NoNewline
+          if ([string]::IsNullOrWhiteSpace($env:SSH_KEY)) {
+            Write-Host "WARNING: GH_SSH_KEY secret is empty — submodules using SSH will fail"
+          } else {
+            [IO.File]::WriteAllText((Join-Path $sshDir 'id_ed25519'), ($env:SSH_KEY -replace "`r`n","`n"))
+            Write-Host "SSH key written to $sshDir\id_ed25519"
+          }
 
       - name: Update Repository (Persistent Workspace)
         shell: pwsh
