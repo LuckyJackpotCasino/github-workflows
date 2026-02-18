@@ -80,9 +80,17 @@ jobs:
             Write-Host "Removed stale global gitconfig with insteadOf rewrite"
           }
 
-          $keyFile = Join-Path $env:USERPROFILE '.ssh\id_ed25519'
+          $keyFile = (Join-Path $env:USERPROFILE '.ssh\id_ed25519') -replace '\\','/'
           $env:GIT_SSH_COMMAND = "ssh -i `"$keyFile`" -o StrictHostKeyChecking=no"
           Write-Host "GIT_SSH_COMMAND: ssh -i $keyFile -o StrictHostKeyChecking=no"
+
+          Write-Host "--- Key file info ---"
+          Write-Host "Exists: $(Test-Path $keyFile)"
+          $keyContent = Get-Content $keyFile -Raw
+          Write-Host "Length: $($keyContent.Length)"
+          Write-Host "Starts with: $($keyContent.Substring(0, [Math]::Min(40, $keyContent.Length)))"
+          Write-Host "--- SSH test ---"
+          & ssh -vT -i $keyFile -o StrictHostKeyChecking=no git@github.com 2>&1 | Select-Object -Last 15 | ForEach-Object { Write-Host $_ }
 
           if (-not (Test-Path ".git")) {
             Write-Host "First build - cloning repository..."
