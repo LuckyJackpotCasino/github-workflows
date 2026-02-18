@@ -47,22 +47,28 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Update Repository (Persistent Workspace)
+      - name: Setup SSH Key
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
+          SSH_KEY: ${{ secrets.GH_SSH_KEY }}
         run: |
-          # Rewrite all SSH URLs to HTTPS so submodules work without SSH keys
-          git config --global url."https://x-access-token:$($env:GH_TOKEN)@github.com/".insteadOf "git@github.com:"
+          $sshDir = "$env:USERPROFILE\.ssh"
+          New-Item -ItemType Directory -Path $sshDir -Force | Out-Null
 
-          $repoUrl = "https://x-access-token:$($env:GH_TOKEN)@github.com/${{ inputs.repository }}.git"
+          ssh-keyscan github.com 2>$null | Out-File "$sshDir\known_hosts" -Encoding ascii
 
+          $env:SSH_KEY | Out-File "$sshDir\id_ed25519" -Encoding ascii -NoNewline
+          # Ensure proper line ending on key file
+          (Get-Content "$sshDir\id_ed25519" -Raw).Replace("`r`n","`n") | Set-Content "$sshDir\id_ed25519" -NoNewline
+
+      - name: Update Repository (Persistent Workspace)
+        shell: pwsh
+        run: |
           if (-not (Test-Path ".git")) {
             Write-Host "First build - cloning repository..."
-            git clone --depth 1 --recurse-submodules --shallow-submodules $repoUrl .
+            git clone --depth 1 --recurse-submodules --shallow-submodules "git@github.com:${{ inputs.repository }}.git" .
           } else {
             Write-Host "Workspace exists - updating..."
-            git remote set-url origin $repoUrl
             git fetch --depth 1 origin master
             git reset --hard origin/master
             git submodule update --init --recursive --depth 1
