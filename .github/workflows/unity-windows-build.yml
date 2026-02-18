@@ -71,12 +71,18 @@ jobs:
 
       - name: Update Repository (Persistent Workspace)
         shell: pwsh
+        env:
+          GIT_SSH_COMMAND: 'ssh -i "$env:USERPROFILE\.ssh\id_ed25519" -o StrictHostKeyChecking=no'
         run: |
           $gitconfig = Join-Path $env:USERPROFILE '.gitconfig'
           if ((Test-Path $gitconfig) -and ((Get-Content $gitconfig -Raw) -match 'insteadOf')) {
             Remove-Item $gitconfig -Force
             Write-Host "Removed stale global gitconfig with insteadOf rewrite"
           }
+
+          $keyFile = Join-Path $env:USERPROFILE '.ssh\id_ed25519'
+          $env:GIT_SSH_COMMAND = "ssh -i `"$keyFile`" -o StrictHostKeyChecking=no"
+          Write-Host "GIT_SSH_COMMAND: ssh -i $keyFile -o StrictHostKeyChecking=no"
 
           if (-not (Test-Path ".git")) {
             Write-Host "First build - cloning repository..."
