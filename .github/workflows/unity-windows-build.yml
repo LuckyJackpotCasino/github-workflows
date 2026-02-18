@@ -1,0 +1,292 @@
+name: Unity Windows Build
+
+on:
+  workflow_call:
+    inputs:
+      unity_version:
+        required: true
+        type: string
+        description: 'Unity version to use (e.g., 6000.2.9f1)'
+      build_method:
+        required: true
+        type: string
+        description: 'Unity build method to call (e.g., RemoteBuilder.BuildWindows)'
+      repository:
+        required: true
+        type: string
+        description: 'Repository to build (e.g., LuckyJackpotCasino/kenocasino)'
+      artifact_name:
+        required: true
+        type: string
+        description: 'Name for the build (e.g., KenoCasino-Windows)'
+      build_number_offset:
+        required: false
+        type: string
+        default: '0'
+        description: 'Build number offset for versioning'
+      ms_store_product_id:
+        required: false
+        type: string
+        default: ''
+        description: 'Microsoft Store Product ID (Partner Center ID). If empty, skips Store upload and keeps build locally.'
+    secrets:
+      GH_SSH_KEY:
+        required: false
+      MS_SELLER_ID:
+        required: false
+      MS_TENANT_ID:
+        required: false
+      MS_CLIENT_ID:
+        required: false
+      MS_CLIENT_SECRET:
+        required: false
+
+jobs:
+  build:
+    runs-on: windows-builder
+    timeout-minutes: 120
+
+    steps:
+      - name: Update Repository (Persistent Workspace)
+        shell: pwsh
+        run: |
+          # Configure SSH for private submodules
+          $sshDir = "$env:USERPROFILE\.ssh"
+          if (-not (Test-Path $sshDir)) { New-Item -ItemType Directory -Path $sshDir -Force | Out-Null }
+          ssh-keyscan github.com 2>$null | Out-File -Append "$sshDir\known_hosts" -Encoding ascii
+
+          if (-not (Test-Path ".git")) {
+            Write-Host "First build - cloning repository..."
+            git clone --depth 1 --recurse-submodules --shallow-submodules "git@github.com:${{ inputs.repository }}.git" .
+          } else {
+            Write-Host "Workspace exists - updating..."
+            git fetch --depth 1 origin master
+            git reset --hard origin/master
+            git submodule update --init --recursive --depth 1
+          }
+
+          Write-Host "Repository ready (Library folder preserved for speed)"
+
+      - name: Calculate Version Code
+        id: version
+        shell: pwsh
+        run: |
+          $versionCode = [int]${{ github.run_number }} + [int]${{ inputs.build_number_offset }}
+          Write-Host "Version Code: $versionCode"
+          Write-Host "  GitHub Run: ${{ github.run_number }}"
+          Write-Host "  Offset: ${{ inputs.build_number_offset }}"
+          "version_code=$versionCode" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Extract Game Name
+        id: game_name
+        shell: pwsh
+        run: |
+          $repoName = "${{ inputs.repository }}"
+          $gameName = $repoName.Split('/')[-1]
+          "game_name=$gameName" | Out-File -Append $env:GITHUB_OUTPUT
+          Write-Host "Game Name: $gameName"
+
+      - name: Build Windows Standalone
+        shell: pwsh
+        run: |
+          Write-Host "Building with Version Code: ${{ steps.version.outputs.version_code }}"
+
+          $unityLog = "$env:TEMP\unity-build-${{ github.run_id }}-${{ github.run_attempt }}.log"
+
+          # Find Unity installation
+          $unityPath = "C:\Program Files\Unity\Hub\Editor\${{ inputs.unity_version }}\Editor\Unity.exe"
+
+          if (-not (Test-Path $unityPath)) {
+            # Fallback: find any installed Unity version
+            $fallback = Get-ChildItem "C:\Program Files\Unity\Hub\Editor" -Directory -ErrorAction SilentlyContinue |
+              Sort-Object Name -Descending | Select-Object -First 1
+            if ($fallback) {
+              $unityPath = Join-Path $fallback.FullName "Editor\Unity.exe"
+              Write-Host "WARNING: Using fallback Unity at: $unityPath"
+            } else {
+              Write-Host "ERROR: No Unity installation found!"
+              exit 1
+            }
+          }
+
+          Write-Host "Unity: $unityPath"
+          Write-Host "Log: $unityLog"
+
+          $process = Start-Process -FilePath $unityPath -ArgumentList @(
+            "-quit",
+            "-batchmode",
+            "-nographics",
+            "-projectPath", (Get-Location).Path,
+            "-executeMethod", "${{ inputs.build_method }}",
+            "-logFile", $unityLog
+          ) -Wait -PassThru -NoNewWindow
+
+          if ($process.ExitCode -ne 0) {
+            Write-Host "Unity build FAILED with exit code: $($process.ExitCode)"
+            if (Test-Path $unityLog) {
+              Write-Host "=== Last 100 lines of Unity log ==="
+              Get-Content $unityLog -Tail 100
+              Write-Host "==================================="
+            }
+            exit $process.ExitCode
+          }
+
+          Write-Host "Unity build complete"
+        env:
+          BUILD_NUMBER: ${{ steps.version.outputs.version_code }}
+          BUILD_NUMBER_OFFSET: '0'
+          JOB_NAME: ${{ steps.game_name.outputs.game_name }}
+
+      - name: Find Build Output
+        id: find_build
+        shell: pwsh
+        run: |
+          Write-Host "Searching for Windows build output..."
+
+          # Unity Windows builds typically output to a "Build" or "WindowsBuild" folder
+          $searchPaths = @("WindowsBuild", "Build", "Builds", "build")
+          $buildDir = $null
+
+          foreach ($dir in $searchPaths) {
+            $candidate = Join-Path (Get-Location).Path $dir
+            if (Test-Path $candidate) {
+              # Look for .exe inside
+              $exe = Get-ChildItem $candidate -Filter "*.exe" -Recurse | Select-Object -First 1
+              if ($exe) {
+                $buildDir = $candidate
+                Write-Host "Found build at: $buildDir"
+                Write-Host "Executable: $($exe.FullName)"
+                break
+              }
+            }
+          }
+
+          # Fallback: search for any .exe that looks like a Unity build (has _Data folder sibling)
+          if (-not $buildDir) {
+            $exes = Get-ChildItem -Path (Get-Location).Path -Filter "*.exe" -Recurse -Depth 3 |
+              Where-Object { Test-Path (Join-Path $_.Directory.FullName ($_.BaseName + "_Data")) }
+            if ($exes) {
+              $buildDir = $exes[0].Directory.FullName
+              Write-Host "Found build via exe+data pattern at: $buildDir"
+            }
+          }
+
+          if (-not $buildDir) {
+            Write-Host "ERROR: No Windows build output found!"
+            exit 1
+          }
+
+          "build_dir=$buildDir" | Out-File -Append $env:GITHUB_OUTPUT
+          Write-Host "Build directory: $buildDir"
+
+      - name: Copy Build to Local Builds Folder
+        id: local_copy
+        shell: pwsh
+        run: |
+          $gameName = "${{ steps.game_name.outputs.game_name }}"
+          $versionCode = "${{ steps.version.outputs.version_code }}"
+          $buildDir = "${{ steps.find_build.outputs.build_dir }}"
+
+          $buildsRoot = "C:\Builds"
+          $destDir = Join-Path $buildsRoot "$gameName\build-$versionCode"
+          $latestLink = Join-Path $buildsRoot "$gameName\latest"
+
+          # Create destination
+          New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+
+          # Copy build output
+          Write-Host "Copying build to: $destDir"
+          Copy-Item -Path "$buildDir\*" -Destination $destDir -Recurse -Force
+
+          # Update "latest" pointer (remove old, create new junction)
+          if (Test-Path $latestLink) { Remove-Item $latestLink -Force -Recurse }
+          New-Item -ItemType Junction -Path $latestLink -Target $destDir | Out-Null
+
+          Write-Host "Local build saved: $destDir"
+          Write-Host "Latest link: $latestLink -> $destDir"
+
+          # Output the path for Store upload step
+          "local_build_path=$destDir" | Out-File -Append $env:GITHUB_OUTPUT
+
+      - name: Upload to Microsoft Store
+        if: inputs.ms_store_product_id != ''
+        uses: microsoft/store-submission@v1
+        with:
+          command: configure
+          type: win32
+          seller-id: ${{ secrets.MS_SELLER_ID }}
+          product-id: ${{ inputs.ms_store_product_id }}
+          tenant-id: ${{ secrets.MS_TENANT_ID }}
+          client-id: ${{ secrets.MS_CLIENT_ID }}
+          client-secret: ${{ secrets.MS_CLIENT_SECRET }}
+
+      - name: Update Store Draft Submission
+        if: inputs.ms_store_product_id != ''
+        uses: microsoft/store-submission@v1
+        with:
+          command: update
+          product-update: |
+            {
+              "packages": [
+                {
+                  "packageUrl": "file://${{ steps.local_copy.outputs.local_build_path }}",
+                  "languages": ["en"],
+                  "architectures": ["X64"]
+                }
+              ]
+            }
+
+      - name: Publish Store Submission
+        if: inputs.ms_store_product_id != ''
+        uses: microsoft/store-submission@v1
+        with:
+          command: publish
+
+      - name: Save Unity Log Locally
+        if: always()
+        shell: pwsh
+        run: |
+          $gameName = "${{ steps.game_name.outputs.game_name }}"
+          $logSrc = "$env:TEMP\unity-build-${{ github.run_id }}-${{ github.run_attempt }}.log"
+          $logDir = "C:\Builds\$gameName\logs"
+
+          if (Test-Path $logSrc) {
+            New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+            $logDest = Join-Path $logDir "unity-build-${{ github.run_number }}.log"
+            Copy-Item $logSrc $logDest -Force
+            Write-Host "Unity log saved: $logDest"
+          } else {
+            Write-Host "No Unity log found at: $logSrc"
+          }
+
+      - name: Cleanup
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "Cleaning up Unity backup folders..."
+          Get-ChildItem -Path (Get-Location).Path -Filter "*_BackUpThisFolder_ButDontShipItWithYourGame" -Directory |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host "Cleanup complete"
+
+      - name: Build Summary
+        if: always()
+        shell: pwsh
+        run: |
+          $gameName = "${{ steps.game_name.outputs.game_name }}"
+          $versionCode = "${{ steps.version.outputs.version_code }}"
+          $storeId = "${{ inputs.ms_store_product_id }}"
+
+          Write-Host "============================================"
+          Write-Host " Windows Build Summary"
+          Write-Host "============================================"
+          Write-Host " Game:          $gameName"
+          Write-Host " Version Code:  $versionCode"
+          Write-Host " Local Path:    C:\Builds\$gameName\build-$versionCode"
+          Write-Host " Latest Link:   C:\Builds\$gameName\latest"
+          Write-Host " Unity Log:     C:\Builds\$gameName\logs\unity-build-${{ github.run_number }}.log"
+          if ($storeId) {
+            Write-Host " Store Upload:  Yes (Product ID: $storeId)"
+          } else {
+            Write-Host " Store Upload:  Skipped (no product ID)"
+          }
+          Write-Host "============================================"

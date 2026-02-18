@@ -9,6 +9,8 @@
 # Examples:
 #   ./build-single-app.sh kenocasino aab
 #   ./build-single-app.sh blackjack21 aab,amazon,ios
+#   ./build-single-app.sh kenocasino windows
+#   ./build-single-app.sh blackjack21 aab,amazon,ios,windows
 #
 
 set -e

@@ -402,6 +402,10 @@
             background: linear-gradient(135deg, #ff9900 0%, #cc7a00 100%);
         }
 
+        .trigger-windows {
+            background: linear-gradient(135deg, #0078d4 0%, #004578 100%);
+        }
+
         .trigger-single {
             padding: 5px 10px;
             font-size: 11px;
@@ -470,6 +474,9 @@
                 <button onclick="triggerBulk('amazon')" class="trigger-btn trigger-amazon">
                     📦 All Apps - Amazon
                 </button>
+                <button onclick="triggerBulk('windows')" class="trigger-btn trigger-windows">
+                    🪟 All Apps - Windows
+                </button>
             </div>
         </div>
         
@@ -487,14 +494,14 @@
                 <div class="label">❌ Failed</div>
             </div>
             <div class="stat-card pending">
-                <div class="number" id="stat-pending">36</div>
+                <div class="number" id="stat-pending">48</div>
                 <div class="label">📦 Pending</div>
             </div>
         </div>
 
         <!-- Runner Status Section -->
         <div class="runner-section">
-            <h3>🖥️ Build Runners (Mac Studio)</h3>
+            <h3>🖥️ Build Runners (Mac Studio + Windows)</h3>
             <div class="stats" style="margin-bottom: 20px; padding: 0; background: transparent;">
                 <div class="stat-card online">
                     <div class="number" id="runner-online">0</div>
@@ -536,6 +543,7 @@
                         <th>iOS Build</th>
                         <th>AAB Build</th>
                         <th>Amazon Build</th>
+                        <th>Windows Build</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -580,9 +588,11 @@
                     ios: 'pending',
                     aab: 'pending',
                     amazon: 'pending',
+                    windows: 'pending',
                     iosRun: null,
                     aabRun: null,
-                    amazonRun: null
+                    amazonRun: null,
+                    windowsRun: null
                 };
             }
         }
@@ -628,7 +638,7 @@
                 const status = await getBuildStatus(app.name);
                 
                 // Update stats
-                [status.ios, status.aab, status.amazon].forEach(s => {
+                [status.ios, status.aab, status.amazon, status.windows].forEach(s => {
                     if (s === 'success') stats.success++;
                     else if (s === 'building' || s === 'in_progress' || s === 'queued') stats.building++;
                     else if (s === 'failed' || s === 'failure') stats.failed++;
@@ -654,12 +664,14 @@
                         <td class="status-ios">${getStatusBadge(status.ios, status.iosRun, app.name, status.iosRunId)}</td>
                         <td class="status-aab">${getStatusBadge(status.aab, status.aabRun, app.name, status.aabRunId)}</td>
                         <td class="status-amazon">${getStatusBadge(status.amazon, status.amazonRun, app.name, status.amazonRunId)}</td>
+                        <td class="status-windows">${getStatusBadge(status.windows, status.windowsRun, app.name, status.windowsRunId)}</td>
                         <td>
                             <div class="action-buttons">
                                 <button onclick="triggerBuild('${app.name}', 'all')" class="trigger-btn trigger-single" title="Build all platforms">🚀</button>
                                 <button onclick="triggerBuild('${app.name}', 'ios')" class="trigger-btn trigger-single trigger-ios" title="Build iOS only">🍎</button>
                                 <button onclick="triggerBuild('${app.name}', 'aab')" class="trigger-btn trigger-single trigger-android" title="Build Google Play">🤖</button>
                                 <button onclick="triggerBuild('${app.name}', 'amazon')" class="trigger-btn trigger-single trigger-amazon" title="Build Amazon">📦</button>
+                                <button onclick="triggerBuild('${app.name}', 'windows')" class="trigger-btn trigger-single trigger-windows" title="Build Windows">🪟</button>
                                 <a href="https://github.com/LuckyJackpotCasino/${app.name}/actions" class="link-btn" target="_blank">View →</a>
                             </div>
                         </td>
@@ -672,10 +684,12 @@
                         const iosCell = row.querySelector('.status-ios');
                         const aabCell = row.querySelector('.status-aab');
                         const amazonCell = row.querySelector('.status-amazon');
+                        const windowsCell = row.querySelector('.status-windows');
                         
                         if (iosCell) iosCell.innerHTML = getStatusBadge(status.ios, status.iosRun, app.name, status.iosRunId);
                         if (aabCell) aabCell.innerHTML = getStatusBadge(status.aab, status.aabRun, app.name, status.aabRunId);
                         if (amazonCell) amazonCell.innerHTML = getStatusBadge(status.amazon, status.amazonRun, app.name, status.amazonRunId);
+                        if (windowsCell) windowsCell.innerHTML = getStatusBadge(status.windows, status.windowsRun, app.name, status.windowsRunId);
                     }
                 }
             }

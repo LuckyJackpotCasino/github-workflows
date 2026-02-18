@@ -55,6 +55,10 @@ class BuildFailureAnalyzer:
             self._fix_git_authentication,
             self._fix_certificate_not_found,
             self._fix_transient_network_error,
+            self._fix_windows_unity_not_found,
+            self._fix_windows_il2cpp_failure,
+            self._fix_windows_visual_studio_missing,
+            self._fix_windows_disk_space,
         ]
         
         for fix_func in fixes:
@@ -235,6 +239,63 @@ class BuildFailureAnalyzer:
                     'retry': True,
                     'delay': 30
                 }
+        return None
+
+
+    def _fix_windows_unity_not_found(self):
+        """Fix: Unity not found on Windows runner"""
+        if 'no unity installation found' in self.logs.lower() or 'unity.exe' in self.logs.lower() and 'not found' in self.logs.lower():
+            print(f"🔧 Detected: Unity not installed on Windows runner", flush=True)
+            return {
+                'issue': 'Unity not found on Windows runner',
+                'action': 'Install Unity via Hub on the Windows build server',
+                'retry': False,
+                'manual_intervention_needed': True
+            }
+        return None
+
+    def _fix_windows_il2cpp_failure(self):
+        """Fix: IL2CPP build failure on Windows (missing Visual Studio C++ components)"""
+        il2cpp_errors = [
+            'il2cpp error',
+            'il2cpp.exe did not run properly',
+            'buildFailedException: il2cpp',
+            'c++ compiler not found',
+            'msvc',
+        ]
+        for error in il2cpp_errors:
+            if error in self.logs.lower():
+                print(f"🔧 Detected: IL2CPP build failure on Windows", flush=True)
+                return {
+                    'issue': 'IL2CPP build failure (Windows)',
+                    'action': 'Verify Visual Studio Build Tools with C++ workload are installed on Windows runner',
+                    'retry': True,
+                    'note': 'IL2CPP requires Visual Studio with "Desktop development with C++" workload'
+                }
+        return None
+
+    def _fix_windows_visual_studio_missing(self):
+        """Fix: Visual Studio or Build Tools not found"""
+        if 'visual studio' in self.logs.lower() and ('not found' in self.logs.lower() or 'not installed' in self.logs.lower()):
+            print(f"🔧 Detected: Visual Studio not found on Windows runner", flush=True)
+            return {
+                'issue': 'Visual Studio Build Tools missing',
+                'action': 'Install Visual Studio Build Tools with C++ workload on Windows runner',
+                'retry': False,
+                'manual_intervention_needed': True
+            }
+        return None
+
+    def _fix_windows_disk_space(self):
+        """Fix: Disk space issues on Windows runner"""
+        if 'not enough space' in self.logs.lower() or 'disk full' in self.logs.lower() or 'no space left' in self.logs.lower():
+            print(f"🔧 Detected: Disk space issue on Windows runner", flush=True)
+            return {
+                'issue': 'Windows runner disk space low',
+                'action': 'Clean old builds from C:\\Builds and Unity Library cache',
+                'retry': True,
+                'note': 'Consider running disk cleanup on the Windows build server'
+            }
         return None
 
 

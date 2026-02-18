@@ -28,7 +28,7 @@ async function getBuildStatus(app) {
         exec(cmd, (error, stdout, stderr) => {
             if (error) {
                 console.error(`Error fetching ${app}:`, error.message);
-                resolve({ ios: 'pending', aab: 'pending', amazon: 'pending' });
+                resolve({ ios: 'pending', aab: 'pending', amazon: 'pending', windows: 'pending' });
                 return;
             }
 
@@ -38,9 +38,11 @@ async function getBuildStatus(app) {
                     ios: 'pending',
                     aab: 'pending',
                     amazon: 'pending',
+                    windows: 'pending',
                     iosRun: null,
                     aabRun: null,
-                    amazonRun: null
+                    amazonRun: null,
+                    windowsRun: null
                 };
 
                 // Find most recent run for each platform
@@ -61,6 +63,10 @@ async function getBuildStatus(app) {
                         result.amazon = status;
                         result.amazonRun = run.databaseId;
                     }
+                    if (!result.windowsRun && (title.includes('windows') || run.workflowName.includes('Windows'))) {
+                        result.windows = status;
+                        result.windowsRun = run.databaseId;
+                    }
                 });
 
                 cache[app] = result;
@@ -68,7 +74,7 @@ async function getBuildStatus(app) {
                 resolve(result);
             } catch (parseError) {
                 console.error(`Error parsing ${app} data:`, parseError.message);
-                resolve({ ios: 'pending', aab: 'pending', amazon: 'pending' });
+                resolve({ ios: 'pending', aab: 'pending', amazon: 'pending', windows: 'pending' });
             }
         });
     });

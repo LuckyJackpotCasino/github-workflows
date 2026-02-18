@@ -7,9 +7,11 @@
 #   ./build-all-apps.sh [platforms]
 #
 # Examples:
-#   ./build-all-apps.sh aab           # AAB only (fast, for SDK testing)
-#   ./build-all-apps.sh aab,amazon    # AAB + Amazon
-#   ./build-all-apps.sh aab,amazon,ios # Full pipeline
+#   ./build-all-apps.sh aab                    # AAB only (fast, for SDK testing)
+#   ./build-all-apps.sh aab,amazon             # AAB + Amazon
+#   ./build-all-apps.sh aab,amazon,ios         # Full mobile pipeline
+#   ./build-all-apps.sh aab,amazon,ios,windows # All platforms including Windows
+#   ./build-all-apps.sh windows                # Windows only
 #
 
 set -e
@@ -104,5 +106,6 @@ echo "Or watch all at once:"
 echo "  https://github.com/LuckyJackpotCasino/kenocasino/actions"
 echo ""
 echo -e "${YELLOW}Tip:${NC} Use './build-all-apps.sh aab' for quick SDK testing (AAB only)"
+echo -e "${YELLOW}Tip:${NC} Use './build-all-apps.sh windows' for Windows Store builds only"
 echo ""
 

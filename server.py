@@ -78,10 +78,11 @@ def trigger_app_build(app, platform):
         
         # Map platform to build_platforms input
         platform_map = {
-            'all': 'ios,aab,amazon',
+            'all': 'ios,aab,amazon,windows',
             'ios': 'ios',
             'aab': 'aab',
-            'amazon': 'amazon'
+            'amazon': 'amazon',
+            'windows': 'windows'
         }
         platforms_input = platform_map.get(platform, platform)
         
@@ -157,7 +158,7 @@ def get_build_status(app):
                     cached[platform] = 'in_progress'
             return cached
         # No cache, return local status with pending for others
-        result = {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending'}
+        result = {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'windows': 'pending'}
         result.update(local_status)
         return result
     
@@ -167,7 +168,7 @@ def get_build_status(app):
             status = cache[app].copy()
             status['rate_limited'] = True
             return status
-        return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'rate_limited': True}
+        return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'windows': 'pending', 'rate_limited': True}
     
     # Smart cache: use cache UNLESS status suggests it might be stale
     if app in cache and app in cache_time:
@@ -199,26 +200,30 @@ def get_build_status(app):
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
         
         if result.returncode != 0 or not result.stdout.strip():
-            return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending'}
+            return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'windows': 'pending'}
         
         runs = json.loads(result.stdout)
         status = {
             'ios': 'pending',
             'aab': 'pending',
             'amazon': 'pending',
+            'windows': 'pending',
             'iosRun': None,
             'aabRun': None,
             'amazonRun': None,
-            'iosRunId': None,  # Store databaseId for API calls
+            'windowsRun': None,
+            'iosRunId': None,
             'aabRunId': None,
-            'amazonRunId': None
+            'amazonRunId': None,
+            'windowsRunId': None
         }
         
         # Track skipped builds as fallback (in case we don't find any non-skipped builds)
         skipped_fallback = {
             'ios': None,
             'aab': None,
-            'amazon': None
+            'amazon': None,
+            'windows': None
         }
         
         # Check each run's jobs to find the most recent status for EACH platform
@@ -229,8 +234,8 @@ def get_build_status(app):
             run_number = run.get('number', run_id)  # Use run_number if available, fallback to databaseId
             run_status = run['status']
             
-            # Early exit if we've already found all 3 platforms (non-skipped)
-            if status['iosRun'] and status['aabRun'] and status['amazonRun']:
+            # Early exit if we've already found all 4 platforms (non-skipped)
+            if status['iosRun'] and status['aabRun'] and status['amazonRun'] and status['windowsRun']:
                 break
             
             # Get jobs for this run to see which platforms were built
@@ -259,6 +264,8 @@ def get_build_status(app):
                             platform = 'aab'
                         elif 'build-amazon' in job_name or 'amazon' in job_name:
                             platform = 'amazon'
+                        elif 'build-windows' in job_name or 'windows' in job_name:
+                            platform = 'windows'
                         
                         if not platform:
                             continue
@@ -282,7 +289,7 @@ def get_build_status(app):
                     pass
         
         # Apply fallbacks for platforms where we found no actual builds
-        for platform in ['ios', 'aab', 'amazon']:
+        for platform in ['ios', 'aab', 'amazon', 'windows']:
             if status[f'{platform}Run'] is None and skipped_fallback[platform]:
                 fb = skipped_fallback[platform]
                 status[platform] = fb['status']
@@ -308,7 +315,7 @@ def get_build_status(app):
         # Return stale cache if available
         if app in cache:
             return cache[app]
-        return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending'}
+        return {'ios': 'pending', 'aab': 'pending', 'amazon': 'pending', 'windows': 'pending'}
 
 def get_runner_status():
     """Fetch status of all GitHub Actions runners from local system"""
@@ -594,7 +601,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_error(404, 'App not found')
                     return
                 
-                if platform not in ['all', 'ios', 'aab', 'amazon']:
+                if platform not in ['all', 'ios', 'aab', 'amazon', 'windows']:
                     self.send_error(400, 'Invalid platform')
                     return
                 
@@ -611,7 +618,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         if parsed_path.path.startswith('/trigger-bulk/'):
             platform = parsed_path.path.split('/trigger-bulk/')[1]
             
-            if platform not in ['all', 'ios', 'aab', 'amazon']:
+            if platform not in ['all', 'ios', 'aab', 'amazon', 'windows']:
                 self.send_error(400, 'Invalid platform')
                 return
             
