@@ -72,6 +72,12 @@ jobs:
       - name: Update Repository (Persistent Workspace)
         shell: pwsh
         run: |
+          $gitconfig = Join-Path $env:USERPROFILE '.gitconfig'
+          if ((Test-Path $gitconfig) -and ((Get-Content $gitconfig -Raw) -match 'insteadOf')) {
+            Remove-Item $gitconfig -Force
+            Write-Host "Removed stale global gitconfig with insteadOf rewrite"
+          }
+
           if (-not (Test-Path ".git")) {
             Write-Host "First build - cloning repository..."
             git clone --depth 1 --recurse-submodules --shallow-submodules "git@github.com:${{ inputs.repository }}.git" .
