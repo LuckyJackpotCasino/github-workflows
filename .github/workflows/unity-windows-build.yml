@@ -52,6 +52,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Rewrite all SSH URLs to HTTPS so submodules work without SSH keys
+          git config --global url."https://x-access-token:$($env:GH_TOKEN)@github.com/".insteadOf "git@github.com:"
+
           $repoUrl = "https://x-access-token:$($env:GH_TOKEN)@github.com/${{ inputs.repository }}.git"
 
           if (-not (Test-Path ".git")) {
