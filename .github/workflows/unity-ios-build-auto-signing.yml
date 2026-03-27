@@ -184,8 +184,8 @@ jobs:
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Prepend to search list (keep login keychain) and set as default for signing
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
+          # Prepend to search list (keep login + system keychains for root CA chain)
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
           security default-keychain -s "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
@@ -285,7 +285,7 @@ jobs:
           fi
           
           echo "🔓 Allow codesign to access keys (partition list)..."
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" >/dev/null || true
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>&1 | head -5 || true
           
           # Verify we have a valid signing identity
           IDENTITY_COUNT=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" | grep -c "valid identities found" || true)
@@ -378,6 +378,20 @@ jobs:
         working-directory: IosProjectFolder
         run: |
           echo "🔨 Building Xcode archive with automatic provisioning..."
+          
+          # Ensure CI keychain is unlocked and in search list for codesign
+          security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
+          
+          # Install Apple Root CA into CI keychain for full certificate chain
+          curl -fsSL -o /tmp/AppleRootCA.cer https://www.apple.com/appleca/AppleIncRootCertificate.cer
+          security import /tmp/AppleRootCA.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
+          rm -f /tmp/AppleRootCA.cer
+          
+          echo "🔐 Keychain search list:"
+          security list-keychains -d user
+          echo "🔐 Signing identities:"
+          security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH"
           
           # Clean DerivedData to avoid stale signing state
           rm -rf ~/Library/Developer/Xcode/DerivedData/Unity-iPhone-*
