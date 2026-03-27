@@ -165,21 +165,26 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
         run: |
           echo "🔐 Setting up CI keychain for codesigning..."
-          # Use shared, persistent keychain for all runners (prevents parallel build conflicts)
-          CI_KEYCHAIN_PATH="$HOME/Library/Keychains/ci-build.keychain-db"
-          CI_KEYCHAIN_PASSWORD="ci-build-secure-password-2024"
           
-          # Create keychain if it doesn't exist
-          if [ ! -f "$CI_KEYCHAIN_PATH" ]; then
-            echo "Creating shared CI keychain..."
-            security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
-            security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
+          # Save current default keychain so we can restore it in cleanup
+          ORIGINAL_DEFAULT_KEYCHAIN=$(security default-keychain -d user | xargs)
+          echo "ORIGINAL_DEFAULT_KEYCHAIN=$ORIGINAL_DEFAULT_KEYCHAIN" >> "$GITHUB_ENV"
+          
+          # Per-run keychain avoids conflicts between parallel builds
+          CI_KEYCHAIN_PATH="$HOME/Library/Keychains/ci-build-${{ github.run_id }}.keychain-db"
+          CI_KEYCHAIN_PASSWORD="ci-build-$(openssl rand -hex 12)"
+          
+          # Remove stale keychain from a previous failed run if it exists
+          if [ -f "$CI_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || rm -f "$CI_KEYCHAIN_PATH"
           fi
           
-          # Unlock keychain for this build
+          # Create fresh keychain for this build
+          security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Add to search list AND set as default for this build
+          # Prepend to search list (keep login keychain) and set as default for signing
           security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
           security default-keychain -s "$CI_KEYCHAIN_PATH"
           
@@ -458,14 +463,31 @@ jobs:
         run: |
           echo "🧹 Cleaning up..."
           
-          # Lock CI keychain (but don't delete - it's shared across builds)
-          if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
-            security lock-keychain "$CI_KEYCHAIN_PATH" || true
+          # Restore the original default keychain so other processes aren't broken
+          if [ -n "$ORIGINAL_DEFAULT_KEYCHAIN" ] && [ -f "$ORIGINAL_DEFAULT_KEYCHAIN" ]; then
+            echo "Restoring default keychain to: $ORIGINAL_DEFAULT_KEYCHAIN"
+            security default-keychain -s "$ORIGINAL_DEFAULT_KEYCHAIN" || true
+          else
+            security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
+          
+          # Restore keychain search list (remove ci-build, keep login)
+          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db || true
+          
+          # Delete the per-run CI keychain entirely
+          if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$CI_KEYCHAIN_PATH" || rm -f "$CI_KEYCHAIN_PATH"
+            echo "✅ Removed CI keychain: $CI_KEYCHAIN_PATH"
+          fi
+          
+          # Clean up leftover ci-build keychains from older failed runs
+          for kc in $HOME/Library/Keychains/ci-build*.keychain-db; do
+            [ -f "$kc" ] && security delete-keychain "$kc" 2>/dev/null || rm -f "$kc" 2>/dev/null
+          done
           
           # Clean up files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
           rm -f ~/private_keys/AuthKey_*.p8
           
-          echo "✅ Cleanup complete"
+          echo "✅ Cleanup complete (default keychain restored)"
 
