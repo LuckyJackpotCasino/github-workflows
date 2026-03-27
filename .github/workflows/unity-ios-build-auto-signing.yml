@@ -334,6 +334,37 @@ jobs:
           # Ensure we sign with Distribution for Release archives
           sed -i '' 's/CODE_SIGN_IDENTITY = \"iPhone Developer\";/CODE_SIGN_IDENTITY = \"Apple Distribution\";/g' Unity-iPhone.xcodeproj/project.pbxproj
           
+          # Navillus iOSKeychainPlugin (UICKeyChainStore) requires Security.framework.
+          # Newer Xcode/SDK versions no longer auto-link it, so add it explicitly.
+          python3 - Unity-iPhone.xcodeproj/project.pbxproj << 'PYEOF'
+          import sys, re
+          
+          pbx = sys.argv[1]
+          with open(pbx, 'r') as f:
+              content = f.read()
+          
+          # Add -framework Security to OTHER_LDFLAGS for every build config that has it
+          if '-framework Security' not in content:
+              # Pattern: OTHER_LDFLAGS = ( ... ); — append before closing paren
+              content = re.sub(
+                  r'(OTHER_LDFLAGS\s*=\s*\([^)]*)',
+                  r'\1\n\t\t\t\t\t"-framework Security",',
+                  content
+              )
+              # Pattern: OTHER_LDFLAGS = "..."; — single-value form, convert to list
+              content = re.sub(
+                  r'OTHER_LDFLAGS\s*=\s*"([^"]+)";\s*$',
+                  r'OTHER_LDFLAGS = (\n\t\t\t\t\t"\1",\n\t\t\t\t\t"-framework Security",\n\t\t\t\t);',
+                  content,
+                  flags=re.MULTILINE
+              )
+              with open(pbx, 'w') as f:
+                  f.write(content)
+              print("✅ Added -framework Security to OTHER_LDFLAGS")
+          else:
+              print("✅ Security.framework already linked")
+          PYEOF
+          
           echo "✅ Project configured for manual signing"
       
       - name: Clean Xcode Build
