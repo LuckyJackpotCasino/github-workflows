@@ -526,39 +526,45 @@ jobs:
           SIGN_IDENTITY=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" | grep "Apple Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
           echo "🔏 Signing identity: $SIGN_IDENTITY"
           
-          EMBEDDED=0
-          for fw in $(find "$XCF_DIR" -name "*.framework" -type d); do
+          EMBEDDED_LIST="/tmp/embedded-frameworks-$$.txt"
+          > "$EMBEDDED_LIST"
+          
+          while IFS= read -r -d '' fw; do
             FW_NAME=$(basename "$fw")
             BINARY_NAME="${FW_NAME%.framework}"
             BINARY_PATH="$fw/$BINARY_NAME"
             
             # Skip if already embedded
             if [ -d "$FRAMEWORKS_DIR/$FW_NAME" ]; then
+              echo "  ⏭️  $FW_NAME already embedded — skipping"
               continue
             fi
             
             # Only embed dynamic frameworks (not static)
             if [ ! -f "$BINARY_PATH" ]; then continue; fi
             if ! file "$BINARY_PATH" | grep -q "dynamically linked"; then
+              echo "  ⏭️  $FW_NAME is static — skipping"
               continue
             fi
             
             echo "  📎 Embedding $FW_NAME (dynamic)..."
             cp -R "$fw" "$FRAMEWORKS_DIR/"
             
-            # Strip any existing extended attributes and re-codesign
             xattr -cr "$FRAMEWORKS_DIR/$FW_NAME" 2>/dev/null || true
             codesign --force --sign "$SIGN_IDENTITY" \
               --keychain "$CI_KEYCHAIN_PATH" \
               --timestamp \
               "$FRAMEWORKS_DIR/$FW_NAME"
             
-            EMBEDDED=$((EMBEDDED + 1))
-          done
+            echo "$FW_NAME" >> "$EMBEDDED_LIST"
+          done < <(find "$XCF_DIR" -name "*.framework" -type d -print0)
           
-          if [ $EMBEDDED -gt 0 ]; then
+          EMBEDDED=$(wc -l < "$EMBEDDED_LIST" | tr -d ' ')
+          rm -f "$EMBEDDED_LIST"
+          
+          if [ "$EMBEDDED" -gt 0 ]; then
             echo "✅ Embedded $EMBEDDED dynamic framework(s) into app bundle"
-            echo "📦 Frameworks in app bundle:"
+            echo "📦 All frameworks in app bundle:"
             ls -1 "$FRAMEWORKS_DIR"
           else
             echo "ℹ️  No additional dynamic frameworks needed embedding"
