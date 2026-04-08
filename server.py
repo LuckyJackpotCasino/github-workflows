@@ -383,9 +383,7 @@ def get_runner_status():
                                                                 print(f"[DEBUG] Found project in log: {project_name}", flush=True)
                                                                 break
                                                 
-                                                # If we found a valid project, stop searching
-                                                if project_name:
-                                                    break
+                                                # project_name is set; inner loop already exited via break
                                         except Exception as log_err:
                                                             print(f"Error reading log {log_path}: {log_err}", flush=True)
                             

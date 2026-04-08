@@ -217,8 +217,9 @@ jobs:
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Prepend to search list (keep login + system keychains for root CA chain)
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
+          # Append our CI keychain to the EXISTING search list (preserves other runners' keychains)
+          EXISTING_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" $EXISTING_KC ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
           security default-keychain -s "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
@@ -414,7 +415,8 @@ jobs:
           
           # Ensure CI keychain is unlocked and in search list for codesign
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
+          EXISTING_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" $EXISTING_KC ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
           
           # Install Apple Root CA into CI keychain for full certificate chain
           curl -fsSL -o /tmp/AppleRootCA.cer https://www.apple.com/appleca/AppleIncRootCertificate.cer
@@ -452,6 +454,7 @@ jobs:
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             OTHER_LDFLAGS='$(inherited) -framework Security' \
+            OTHER_CODE_SIGN_FLAGS="--keychain $CI_KEYCHAIN_PATH" \
             | tee /tmp/xcodebuild-archive.log
           
           XCODE_EXIT=${PIPESTATUS[0]}
@@ -544,19 +547,28 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Restore keychain search list (remove ci-build, keep login)
-          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db || true
+          # Remove ONLY our CI keychain from the search list (preserve other runners' keychains)
+          if [ -n "$CI_KEYCHAIN_PATH" ]; then
+            CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+            FILTERED_KC=""
+            for kc in $CURRENT_KC; do
+              case "$kc" in
+                *ci-build-${{ github.run_id }}*) ;; # skip our keychain
+                *) FILTERED_KC="$FILTERED_KC $kc" ;;
+              esac
+            done
+            if [ -n "$FILTERED_KC" ]; then
+              security list-keychains -d user -s $FILTERED_KC || true
+            else
+              security list-keychains -d user -s ~/Library/Keychains/login.keychain-db || true
+            fi
+          fi
           
-          # Delete the per-run CI keychain entirely
+          # Delete ONLY this run's CI keychain (not other concurrent builds' keychains)
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
             security delete-keychain "$CI_KEYCHAIN_PATH" || rm -f "$CI_KEYCHAIN_PATH"
             echo "✅ Removed CI keychain: $CI_KEYCHAIN_PATH"
           fi
-          
-          # Clean up leftover ci-build keychains from older failed runs
-          for kc in $HOME/Library/Keychains/ci-build*.keychain-db; do
-            [ -f "$kc" ] && security delete-keychain "$kc" 2>/dev/null || rm -f "$kc" 2>/dev/null
-          done
           
           # Clean up files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
