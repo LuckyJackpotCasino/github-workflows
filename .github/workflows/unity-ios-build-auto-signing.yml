@@ -208,10 +208,13 @@ jobs:
           CI_KEYCHAIN_PATH="$HOME/Library/Keychains/ci-build-${{ github.run_id }}.keychain-db"
           CI_KEYCHAIN_PASSWORD="ci-build-$(openssl rand -hex 12)"
           
-          # Remove stale keychain from a previous failed run if it exists
-          if [ -f "$CI_KEYCHAIN_PATH" ]; then
-            security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || rm -f "$CI_KEYCHAIN_PATH"
-          fi
+          # Clean up stale CI keychains from previous failed builds.
+          # These can corrupt the keychain search list and cause errSecInternalComponent.
+          for kc in ~/Library/Keychains/ci-build-*.keychain-db; do
+            [ -f "$kc" ] || continue
+            echo "🗑️  Removing stale keychain: $(basename "$kc")"
+            security delete-keychain "$kc" 2>/dev/null || rm -f "$kc"
+          done
           
           # Create fresh keychain for this build
           security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
@@ -496,16 +499,14 @@ jobs:
           # Re-apply partition list right before archive
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>&1 | head -5 || true
           
-          # Set search list to ONLY CI keychains (exclude login/System).
-          # The login keychain contains an expired WWDR G1 cert that poisons codesign
-          # chain evaluation. CI keychains have all the valid certs (WWDR G3/G6, Root CA).
-          # Use a filesystem lock to prevent concurrent builds from racing.
+          # Temporarily set keychain search list to ONLY this build's CI keychain
+          # (excludes login keychain whose expired WWDR G1 cert poisons chain evaluation,
+          # and excludes stale CI keychains from other builds that may be locked/corrupt).
           LOCKDIR="/tmp/keychain-search-list.lock"
           while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
           SAVED_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
           echo "SAVED_KC=$SAVED_KC" >> "$GITHUB_ENV"
-          ALL_CI_KC=$(ls ~/Library/Keychains/ci-build-*.keychain-db 2>/dev/null | tr '\n' ' ')
-          security list-keychains -d user -s $ALL_CI_KC
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH"
           rm -rf "$LOCKDIR"
           
           echo "🔐 Keychain search list (CI only for archive):"
