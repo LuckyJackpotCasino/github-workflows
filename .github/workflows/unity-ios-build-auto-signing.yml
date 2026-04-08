@@ -94,8 +94,18 @@ jobs:
           if [ -f "Library/.unity_version_cache" ]; then
             CACHED_UNITY=$(cat Library/.unity_version_cache)
           fi
+          NEED_CLEAN=false
           if [ "$CACHED_UNITY" != "$EXPECTED_UNITY" ]; then
-            echo "⚠️  Unity version changed ($CACHED_UNITY -> $EXPECTED_UNITY) - clearing Library cache..."
+            echo "⚠️  Unity version changed ($CACHED_UNITY -> $EXPECTED_UNITY)"
+            NEED_CLEAN=true
+          fi
+          # Also detect stale PackageCache from incompatible Unity versions
+          if [ -d "Library/PackageCache" ] && ls Library/PackageCache/com.unity.serialization@* 1>/dev/null 2>&1; then
+            echo "⚠️  Found stale com.unity.serialization in PackageCache"
+            NEED_CLEAN=true
+          fi
+          if [ "$NEED_CLEAN" = true ]; then
+            echo "🗑️  Clearing Library cache..."
             rm -rf Library/
             mkdir -p Library
             echo "$EXPECTED_UNITY" > Library/.unity_version_cache
