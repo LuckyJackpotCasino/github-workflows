@@ -559,10 +559,7 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Restore clean search list
-          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db || true
-          
-          # Delete ONLY this run's CI keychain (not other concurrent builds' keychains)
+          # Delete ONLY this run's CI keychain (delete-keychain also removes it from the search list)
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
             security delete-keychain "$CI_KEYCHAIN_PATH" || rm -f "$CI_KEYCHAIN_PATH"
             echo "✅ Removed CI keychain: $CI_KEYCHAIN_PATH"
