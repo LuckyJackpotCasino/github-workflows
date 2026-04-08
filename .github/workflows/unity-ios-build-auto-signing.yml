@@ -221,15 +221,12 @@ jobs:
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # APPEND our CI keychain to the search list under a filesystem lock.
-          # The lock prevents concurrent builds from racing on read-modify-write.
-          LOCKDIR="/tmp/keychain-search-list.lock"
-          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
-          CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-          if ! echo "$CURRENT_KC" | grep -q "ci-build-${{ github.run_id }}.keychain-db"; then
-            security list-keychains -d user -s $CURRENT_KC "$CI_KEYCHAIN_PATH"
-          fi
-          rm -rf "$LOCKDIR"
+          # Set the keychain search list: login + our CI keychain.
+          # Always include login.keychain-db to ensure the certificate trust
+          # chain can be resolved (system roots, WWDR intermediates).
+          security list-keychains -d user -s \
+            "$HOME/Library/Keychains/login.keychain-db" \
+            "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
@@ -611,21 +608,12 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Remove this run's CI keychain from the search list under a lock,
-          # then delete the file. Using a lock prevents races with concurrent builds'
-          # search list modifications.
+          # Delete this run's CI keychain and restore login-only search list.
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
-            LOCKDIR="/tmp/keychain-search-list.lock"
-            while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
-            CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-            FILTERED_KC=$(echo "$CURRENT_KC" | sed "s|$CI_KEYCHAIN_PATH||g" | xargs)
-            if [ -n "$FILTERED_KC" ]; then
-              security list-keychains -d user -s $FILTERED_KC
-            fi
-            rm -rf "$LOCKDIR"
-            rm -f "$CI_KEYCHAIN_PATH"
+            security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || rm -f "$CI_KEYCHAIN_PATH"
             echo "✅ Removed CI keychain: $CI_KEYCHAIN_PATH"
           fi
+          security list-keychains -d user -s "$HOME/Library/Keychains/login.keychain-db"
           
           # Clean up files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
