@@ -499,6 +499,71 @@ jobs:
           
           echo "✅ Xcode archive created for App Store distribution"
       
+      - name: Embed Dynamic Pod Frameworks
+        run: |
+          ARCHIVE_PATH="$GITHUB_WORKSPACE/Unity-iPhone.xcarchive"
+          APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -name "*.app" -maxdepth 1 | head -1)
+          
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ No .app found in archive"
+            exit 1
+          fi
+          
+          FRAMEWORKS_DIR="$APP_PATH/Frameworks"
+          mkdir -p "$FRAMEWORKS_DIR"
+          
+          DERIVED_DATA_PATH="$HOME/Library/Developer/Xcode/DerivedData/Build-${{ github.run_id }}-${{ github.run_attempt }}"
+          XCF_DIR="$DERIVED_DATA_PATH/Build/Intermediates.noindex/ArchiveIntermediates/Unity-iPhone/BuildProductsPath/Release-iphoneos/XCFrameworkIntermediates"
+          
+          if [ ! -d "$XCF_DIR" ]; then
+            echo "⚠️  No XCFrameworkIntermediates found at $XCF_DIR — skipping"
+            exit 0
+          fi
+          
+          # Ensure CI keychain is accessible for codesigning embedded frameworks
+          security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>/dev/null || true
+          
+          SIGN_IDENTITY=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" | grep "Apple Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "🔏 Signing identity: $SIGN_IDENTITY"
+          
+          EMBEDDED=0
+          for fw in $(find "$XCF_DIR" -name "*.framework" -type d); do
+            FW_NAME=$(basename "$fw")
+            BINARY_NAME="${FW_NAME%.framework}"
+            BINARY_PATH="$fw/$BINARY_NAME"
+            
+            # Skip if already embedded
+            if [ -d "$FRAMEWORKS_DIR/$FW_NAME" ]; then
+              continue
+            fi
+            
+            # Only embed dynamic frameworks (not static)
+            if [ ! -f "$BINARY_PATH" ]; then continue; fi
+            if ! file "$BINARY_PATH" | grep -q "dynamically linked"; then
+              continue
+            fi
+            
+            echo "  📎 Embedding $FW_NAME (dynamic)..."
+            cp -R "$fw" "$FRAMEWORKS_DIR/"
+            
+            # Strip any existing extended attributes and re-codesign
+            xattr -cr "$FRAMEWORKS_DIR/$FW_NAME" 2>/dev/null || true
+            codesign --force --sign "$SIGN_IDENTITY" \
+              --keychain "$CI_KEYCHAIN_PATH" \
+              --timestamp \
+              "$FRAMEWORKS_DIR/$FW_NAME"
+            
+            EMBEDDED=$((EMBEDDED + 1))
+          done
+          
+          if [ $EMBEDDED -gt 0 ]; then
+            echo "✅ Embedded $EMBEDDED dynamic framework(s) into app bundle"
+            echo "📦 Frameworks in app bundle:"
+            ls -1 "$FRAMEWORKS_DIR"
+          else
+            echo "ℹ️  No additional dynamic frameworks needed embedding"
+          fi
+      
       - name: Export IPA
         run: |
           # Get bundle ID from Xcode project
