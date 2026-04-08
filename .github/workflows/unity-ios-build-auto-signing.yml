@@ -421,10 +421,15 @@ jobs:
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
           
-          # Install Apple Root CA into CI keychain for full certificate chain
+          # Install Apple certificate chain into CI keychain for codesign trust validation.
+          # Without these, codesign fails with errSecInternalComponent.
           curl -fsSL -o /tmp/AppleRootCA.cer https://www.apple.com/appleca/AppleIncRootCertificate.cer
+          curl -fsSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          curl -fsSL -o /tmp/AppleWWDRCAG6.cer https://www.apple.com/certificateauthority/AppleWWDRCAG6.cer
           security import /tmp/AppleRootCA.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
-          rm -f /tmp/AppleRootCA.cer
+          security import /tmp/AppleWWDRCAG3.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
+          security import /tmp/AppleWWDRCAG6.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
+          rm -f /tmp/AppleRootCA.cer /tmp/AppleWWDRCAG3.cer /tmp/AppleWWDRCAG6.cer
           
           # Re-apply partition list right before archive (may get invalidated by concurrent builds)
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>&1 | head -5 || true
