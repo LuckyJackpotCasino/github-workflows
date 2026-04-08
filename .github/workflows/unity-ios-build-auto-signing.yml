@@ -484,32 +484,11 @@ jobs:
         run: |
           echo "🔨 Building Xcode archive with automatic provisioning..."
           
-          # Ensure CI keychain is unlocked and in search list for codesign
+          # Ensure CI keychain is unlocked for codesign
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
-          
-          # Install Apple certificate chain into the CI keychain.
-          curl -fsSL -o /tmp/AppleRootCA.cer https://www.apple.com/appleca/AppleIncRootCertificate.cer
-          curl -fsSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
-          curl -fsSL -o /tmp/AppleWWDRCAG6.cer https://www.apple.com/certificateauthority/AppleWWDRCAG6.cer
-          security import /tmp/AppleRootCA.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
-          security import /tmp/AppleWWDRCAG3.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
-          security import /tmp/AppleWWDRCAG6.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
-          rm -f /tmp/AppleRootCA.cer /tmp/AppleWWDRCAG3.cer /tmp/AppleWWDRCAG6.cer
-          
-          # Re-apply partition list right before archive
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>&1 | head -5 || true
           
-          # Temporarily set keychain search list to ONLY this build's CI keychain
-          # (excludes login keychain whose expired WWDR G1 cert poisons chain evaluation,
-          # and excludes stale CI keychains from other builds that may be locked/corrupt).
-          LOCKDIR="/tmp/keychain-search-list.lock"
-          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
-          SAVED_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-          echo "SAVED_KC=$SAVED_KC" >> "$GITHUB_ENV"
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH"
-          rm -rf "$LOCKDIR"
-          
-          echo "🔐 Keychain search list (CI only for archive):"
+          echo "🔐 Keychain search list:"
           security list-keychains -d user
           echo "🔐 Signing identities (CI keychain):"
           security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH"
@@ -539,18 +518,10 @@ jobs:
             -derivedDataPath "$DERIVED_DATA_PATH" \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
-            OTHER_LDFLAGS='$(inherited) -framework Security' \
             OTHER_CODE_SIGN_FLAGS="--keychain $CI_KEYCHAIN_PATH" \
             | tee /tmp/xcodebuild-archive.log
           
           XCODE_EXIT=${PIPESTATUS[0]}
-          
-          # Restore original keychain search list (re-add login keychain)
-          LOCKDIR="/tmp/keychain-search-list.lock"
-          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
-          security list-keychains -d user -s $SAVED_KC
-          rm -rf "$LOCKDIR"
-          echo "🔐 Keychain search list restored"
           
           if [ $XCODE_EXIT -ne 0 ]; then
             echo "❌ Xcode archive failed!"
