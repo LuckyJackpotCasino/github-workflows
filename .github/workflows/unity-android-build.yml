@@ -65,6 +65,7 @@ jobs:
             echo "♻️  Workspace exists - updating (much faster!)..."
             git fetch --depth 1 origin master
             git reset --hard origin/master
+            git submodule foreach --recursive 'git clean -ffdx && git reset --hard' 2>/dev/null || true
             git submodule update --init --recursive --depth 1
           fi
           
