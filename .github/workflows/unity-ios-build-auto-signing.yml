@@ -217,13 +217,15 @@ jobs:
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # APPEND our CI keychain to the search list (never replace other builds' keychains).
-          # Deliberately EXCLUDING System.keychain because it contains an expired WWDR G1
-          # cert that poisons certificate chain evaluation.
+          # APPEND our CI keychain to the search list under a filesystem lock.
+          # The lock prevents concurrent builds from racing on read-modify-write.
+          LOCKDIR="/tmp/keychain-search-list.lock"
+          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
           CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
           if ! echo "$CURRENT_KC" | grep -q "ci-build-${{ github.run_id }}.keychain-db"; then
             security list-keychains -d user -s $CURRENT_KC "$CI_KEYCHAIN_PATH"
           fi
+          rm -rf "$LOCKDIR"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
@@ -419,19 +421,29 @@ jobs:
           
           # Ensure CI keychain is unlocked and in search list for codesign
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
+          
+          # Use a filesystem lock to safely modify the shared keychain search list.
+          # Without locking, concurrent builds race on read-modify-write of the list,
+          # causing keychains to disappear and errSecInternalComponent.
+          LOCKDIR="/tmp/keychain-search-list.lock"
+          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
           CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
           if ! echo "$CURRENT_KC" | grep -q "ci-build-${{ github.run_id }}.keychain-db"; then
             security list-keychains -d user -s $CURRENT_KC "$CI_KEYCHAIN_PATH"
           fi
+          rm -rf "$LOCKDIR"
           
-          # Install Apple certificate chain into CI keychain for codesign trust validation.
-          # Without these, codesign fails with errSecInternalComponent.
+          # Install Apple certificate chain into BOTH login and CI keychains.
+          # login keychain is always in the search list, so chain validation works
+          # even if another build's cleanup removes our CI keychain from the list.
           curl -fsSL -o /tmp/AppleRootCA.cer https://www.apple.com/appleca/AppleIncRootCertificate.cer
           curl -fsSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
           curl -fsSL -o /tmp/AppleWWDRCAG6.cer https://www.apple.com/certificateauthority/AppleWWDRCAG6.cer
-          security import /tmp/AppleRootCA.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
-          security import /tmp/AppleWWDRCAG3.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
-          security import /tmp/AppleWWDRCAG6.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
+          for KC in "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db; do
+            security import /tmp/AppleRootCA.cer -k "$KC" -T /usr/bin/codesign 2>/dev/null || true
+            security import /tmp/AppleWWDRCAG3.cer -k "$KC" -T /usr/bin/codesign 2>/dev/null || true
+            security import /tmp/AppleWWDRCAG6.cer -k "$KC" -T /usr/bin/codesign 2>/dev/null || true
+          done
           rm -f /tmp/AppleRootCA.cer /tmp/AppleWWDRCAG3.cer /tmp/AppleWWDRCAG6.cer
           
           # Re-apply partition list right before archive (may get invalidated by concurrent builds)
@@ -566,9 +578,19 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Delete ONLY this run's CI keychain (delete-keychain also removes it from the search list)
+          # Remove this run's CI keychain from the search list under a lock,
+          # then delete the file. Using a lock prevents races with concurrent builds'
+          # search list modifications.
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
-            security delete-keychain "$CI_KEYCHAIN_PATH" || rm -f "$CI_KEYCHAIN_PATH"
+            LOCKDIR="/tmp/keychain-search-list.lock"
+            while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
+            CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+            FILTERED_KC=$(echo "$CURRENT_KC" | sed "s|$CI_KEYCHAIN_PATH||g" | xargs)
+            if [ -n "$FILTERED_KC" ]; then
+              security list-keychains -d user -s $FILTERED_KC
+            fi
+            rm -rf "$LOCKDIR"
+            rm -f "$CI_KEYCHAIN_PATH"
             echo "✅ Removed CI keychain: $CI_KEYCHAIN_PATH"
           fi
           

@@ -33,6 +33,9 @@ APPS=(
   "kenosuper4x"
   "roulette"
   "vintageslots"
+  "fvg-keno"
+  "fvg-fourcardkeno"
+  "fvg-multicardkeno"
 )
 
 bump_patch() {
