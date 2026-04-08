@@ -217,9 +217,10 @@ jobs:
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Append our CI keychain to the EXISTING search list (preserves other runners' keychains)
-          EXISTING_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" $EXISTING_KC ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
+          # Set a clean search list: our CI keychain + login + System for certificate chain.
+          # xcodebuild uses OTHER_CODE_SIGN_FLAGS=--keychain to find our identity directly,
+          # so we don't need other runners' keychains in the search list.
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
           security default-keychain -s "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
@@ -245,18 +246,20 @@ jobs:
             exit 1
           fi
           
-          mkdir -p ~/private_keys
-          echo "${{ env.API_KEY_CONTENT }}" | base64 --decode > ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
+          PRIVATE_KEYS_DIR="$HOME/private_keys/${{ github.run_id }}"
+          mkdir -p "$PRIVATE_KEYS_DIR"
+          echo "PRIVATE_KEYS_DIR=$PRIVATE_KEYS_DIR" >> "$GITHUB_ENV"
+          echo "${{ env.API_KEY_CONTENT }}" | base64 --decode > "$PRIVATE_KEYS_DIR/AuthKey_${{ env.API_KEY_ID }}.p8"
           
           # Verify the key was created successfully
-          if [ ! -s ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8 ]; then
+          if [ ! -s "$PRIVATE_KEYS_DIR/AuthKey_${{ env.API_KEY_ID }}.p8" ]; then
             echo "❌ Failed to create AuthKey file! The decoded content is empty."
             echo "This usually means API_KEY_CONTENT is not a valid base64-encoded .p8 file."
             exit 1
           fi
           
-          chmod 600 ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8
-          echo "✅ AuthKey file created: ~/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8"
+          chmod 600 "$PRIVATE_KEYS_DIR/AuthKey_${{ env.API_KEY_ID }}.p8"
+          echo "✅ AuthKey file created: $PRIVATE_KEYS_DIR/AuthKey_${{ env.API_KEY_ID }}.p8"
           
           # Create Match configuration
           mkdir -p fastlane
@@ -278,7 +281,7 @@ jobs:
               api_key = app_store_connect_api_key(
                 key_id: ENV["API_KEY_ID"],
                 issuer_id: ENV["API_ISSUER_ID"],
-                key_filepath: "#{ENV['HOME']}/private_keys/AuthKey_#{ENV['API_KEY_ID']}.p8",
+                key_filepath: "#{ENV['PRIVATE_KEYS_DIR']}/AuthKey_#{ENV['API_KEY_ID']}.p8",
                 in_house: false
               )
               
@@ -296,6 +299,7 @@ jobs:
           
           export API_KEY_ID="${{ env.API_KEY_ID }}"
           export API_ISSUER_ID="${{ env.API_ISSUER_ID }}"
+          export PRIVATE_KEYS_DIR="$PRIVATE_KEYS_DIR"
           export CI_KEYCHAIN_PATH="$CI_KEYCHAIN_PATH"
           export CI_KEYCHAIN_PASSWORD="$CI_KEYCHAIN_PASSWORD"
           
@@ -415,13 +419,15 @@ jobs:
           
           # Ensure CI keychain is unlocked and in search list for codesign
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
-          EXISTING_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" $EXISTING_KC ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
           
           # Install Apple Root CA into CI keychain for full certificate chain
           curl -fsSL -o /tmp/AppleRootCA.cer https://www.apple.com/appleca/AppleIncRootCertificate.cer
           security import /tmp/AppleRootCA.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
           rm -f /tmp/AppleRootCA.cer
+          
+          # Re-apply partition list right before archive (may get invalidated by concurrent builds)
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>&1 | head -5 || true
           
           echo "🔐 Keychain search list:"
           security list-keychains -d user
@@ -516,11 +522,11 @@ jobs:
           IPA=$(find export -name "*.ipa" | head -1)
           echo "📦 Uploading: $IPA"
           
-          # Ensure AuthKey file exists
-          AUTH_KEY_PATH="$HOME/private_keys/AuthKey_${{ env.API_KEY_ID }}.p8"
+          # Ensure AuthKey file exists (run-specific directory)
+          AUTH_KEY_PATH="$PRIVATE_KEYS_DIR/AuthKey_${{ env.API_KEY_ID }}.p8"
           if [ ! -f "$AUTH_KEY_PATH" ]; then
             echo "❌ AuthKey file not found at: $AUTH_KEY_PATH"
-            ls -la "$HOME/private_keys/" || echo "private_keys directory doesn't exist"
+            ls -la "$PRIVATE_KEYS_DIR/" || echo "private_keys directory doesn't exist"
             exit 1
           fi
           echo "✅ AuthKey file found: $AUTH_KEY_PATH"
@@ -547,22 +553,8 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Remove ONLY our CI keychain from the search list (preserve other runners' keychains)
-          if [ -n "$CI_KEYCHAIN_PATH" ]; then
-            CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-            FILTERED_KC=""
-            for kc in $CURRENT_KC; do
-              case "$kc" in
-                *ci-build-${{ github.run_id }}*) ;; # skip our keychain
-                *) FILTERED_KC="$FILTERED_KC $kc" ;;
-              esac
-            done
-            if [ -n "$FILTERED_KC" ]; then
-              security list-keychains -d user -s $FILTERED_KC || true
-            else
-              security list-keychains -d user -s ~/Library/Keychains/login.keychain-db || true
-            fi
-          fi
+          # Restore clean search list (login + System only)
+          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain || true
           
           # Delete ONLY this run's CI keychain (not other concurrent builds' keychains)
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
@@ -572,7 +564,7 @@ jobs:
           
           # Clean up files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
-          rm -f ~/private_keys/AuthKey_*.p8
+          rm -rf "$HOME/private_keys/${{ github.run_id }}" 2>/dev/null || true
           
           echo "✅ Cleanup complete (default keychain restored)"
 
