@@ -149,8 +149,10 @@ jobs:
           
           UNITY_EXIT=$?
           
-          # Unity can exit 0 even when the build fails internally
-          if grep -q "Build Finished, Result: Failure" "$UNITY_LOG" 2>/dev/null; then
+          # Unity can exit 0 even when the build fails internally.
+          # Check only the LAST "Build Finished" line (Unity may retry and succeed).
+          LAST_BUILD_RESULT=$(grep "Build Finished, Result:" "$UNITY_LOG" 2>/dev/null | tail -1)
+          if echo "$LAST_BUILD_RESULT" | grep -q "Failure"; then
             echo "❌ Unity build reported internal failure!"
             echo "Last 30 lines of log:"
             tail -30 "$UNITY_LOG"
