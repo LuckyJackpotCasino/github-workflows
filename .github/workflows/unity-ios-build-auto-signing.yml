@@ -217,10 +217,11 @@ jobs:
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Set a clean search list: our CI keychain + login + System for certificate chain.
-          # xcodebuild uses OTHER_CODE_SIGN_FLAGS=--keychain to find our identity directly,
-          # so we don't need other runners' keychains in the search list.
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
+          # Search list: CI keychain + login only.
+          # Deliberately EXCLUDING System.keychain because it contains an expired WWDR G1
+          # cert that poisons certificate chain evaluation. The system trust roots
+          # (SystemRootCertificates.keychain) are always consulted regardless of search list.
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
           security default-keychain -s "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
@@ -419,7 +420,7 @@ jobs:
           
           # Ensure CI keychain is unlocked and in search list for codesign
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain
+          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
           
           # Install Apple certificate chain into CI keychain for codesign trust validation.
           # Without these, codesign fails with errSecInternalComponent.
@@ -558,8 +559,8 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Restore clean search list (login + System only)
-          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db /Library/Keychains/System.keychain || true
+          # Restore clean search list
+          security list-keychains -d user -s ~/Library/Keychains/login.keychain-db || true
           
           # Delete ONLY this run's CI keychain (not other concurrent builds' keychains)
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
