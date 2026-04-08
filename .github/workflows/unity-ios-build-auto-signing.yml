@@ -369,16 +369,80 @@ jobs:
         working-directory: IosProjectFolder
         run: |
           export LC_ALL=en_US.UTF-8
-          
-          # Use Homebrew-installed pod
           POD=/opt/homebrew/bin/pod
           
-          # Clean and update pods
           $POD deintegrate || true
           rm -rf Pods Podfile.lock
           
-          # Install fresh
-          $POD install
+          echo "📋 EDM4U-generated Podfile:"
+          cat Podfile
+          echo ""
+          echo "---"
+          
+          # EDM4U puts all pods under the UnityFramework target only.
+          # Facebook SDK ships as dynamic XCFrameworks — CocoaPods links them to
+          # UnityFramework but never creates an embed phase on Unity-iPhone.
+          # Fix: copy the pod declarations into the Unity-iPhone target so
+          # CocoaPods knows to embed the dynamic frameworks in the app bundle.
+          python3 << 'PYEOF'
+import re
+
+podfile = open("Podfile").read()
+
+# --- Extract pod lines from the UnityFramework target ---
+uf_header = re.search(r"target\s+['\"]UnityFramework['\"]\s+do\s*\n", podfile)
+if not uf_header:
+    print("⚠️  No UnityFramework target found — skipping")
+    exit(0)
+
+uf_end = re.search(r"^end\b", podfile[uf_header.end():], re.MULTILINE)
+if not uf_end:
+    print("⚠️  No 'end' for UnityFramework target — skipping")
+    exit(0)
+
+uf_body = podfile[uf_header.end() : uf_header.end() + uf_end.start()]
+pod_lines = [l for l in uf_body.splitlines() if l.strip().startswith("pod ")]
+
+if not pod_lines:
+    print("ℹ️  No pod declarations in UnityFramework target")
+    exit(0)
+
+print(f"Found {len(pod_lines)} pod(s) in UnityFramework:")
+for l in pod_lines:
+    print(f"  {l.strip()}")
+
+# --- Find the Unity-iPhone target ---
+ip_header = re.search(r"target\s+['\"]Unity-iPhone['\"]\s+do\s*\n", podfile)
+if not ip_header:
+    print("⚠️  No Unity-iPhone target found — skipping")
+    exit(0)
+
+ip_end = re.search(r"^end\b", podfile[ip_header.end():], re.MULTILINE)
+if not ip_end:
+    print("⚠️  No 'end' for Unity-iPhone target — skipping")
+    exit(0)
+
+ip_body = podfile[ip_header.end() : ip_header.end() + ip_end.start()]
+if any("pod " in l for l in ip_body.splitlines()):
+    print("ℹ️  Unity-iPhone already has pod declarations — skipping")
+    exit(0)
+
+# --- Insert the pod declarations just before Unity-iPhone's 'end' ---
+insert_at = ip_header.end() + ip_end.start()
+pod_block = "\n".join("  " + l.strip() for l in pod_lines) + "\n"
+new_podfile = podfile[:insert_at] + pod_block + podfile[insert_at:]
+
+open("Podfile", "w").write(new_podfile)
+print(f"✅ Copied {len(pod_lines)} pod declarations into Unity-iPhone target")
+PYEOF
+          
+          echo ""
+          echo "📋 Podfile after fix:"
+          cat Podfile
+          echo ""
+          echo "---"
+          
+          $POD install --verbose 2>&1 | tail -40
           
           echo "✅ CocoaPods dependencies installed"
       
@@ -498,80 +562,6 @@ jobs:
           fi
           
           echo "✅ Xcode archive created for App Store distribution"
-      
-      - name: Embed Dynamic Pod Frameworks
-        run: |
-          ARCHIVE_PATH="$GITHUB_WORKSPACE/Unity-iPhone.xcarchive"
-          APP_PATH=$(find "$ARCHIVE_PATH/Products/Applications" -name "*.app" -maxdepth 1 | head -1)
-          
-          if [ -z "$APP_PATH" ]; then
-            echo "❌ No .app found in archive"
-            exit 1
-          fi
-          
-          FRAMEWORKS_DIR="$APP_PATH/Frameworks"
-          mkdir -p "$FRAMEWORKS_DIR"
-          
-          DERIVED_DATA_PATH="$HOME/Library/Developer/Xcode/DerivedData/Build-${{ github.run_id }}-${{ github.run_attempt }}"
-          XCF_DIR="$DERIVED_DATA_PATH/Build/Intermediates.noindex/ArchiveIntermediates/Unity-iPhone/BuildProductsPath/Release-iphoneos/XCFrameworkIntermediates"
-          
-          if [ ! -d "$XCF_DIR" ]; then
-            echo "⚠️  No XCFrameworkIntermediates found at $XCF_DIR — skipping"
-            exit 0
-          fi
-          
-          # Ensure CI keychain is accessible for codesigning embedded frameworks
-          security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>/dev/null || true
-          
-          # Use the certificate SHA-1 hash to avoid "ambiguous" errors when
-          # multiple copies of the same identity exist in the keychain.
-          SIGN_HASH=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" | grep "Apple Distribution" | head -1 | awk '{print $2}')
-          SIGN_IDENTITY=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" | grep "Apple Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          echo "🔏 Signing identity: $SIGN_IDENTITY ($SIGN_HASH)"
-          
-          EMBEDDED_LIST="/tmp/embedded-frameworks-$$.txt"
-          > "$EMBEDDED_LIST"
-          
-          while IFS= read -r -d '' fw; do
-            FW_NAME=$(basename "$fw")
-            BINARY_NAME="${FW_NAME%.framework}"
-            BINARY_PATH="$fw/$BINARY_NAME"
-            
-            # Skip if already embedded
-            if [ -d "$FRAMEWORKS_DIR/$FW_NAME" ]; then
-              echo "  ⏭️  $FW_NAME already embedded — skipping"
-              continue
-            fi
-            
-            # Only embed dynamic frameworks (not static)
-            if [ ! -f "$BINARY_PATH" ]; then continue; fi
-            if ! file "$BINARY_PATH" | grep -q "dynamically linked"; then
-              echo "  ⏭️  $FW_NAME is static — skipping"
-              continue
-            fi
-            
-            echo "  📎 Embedding $FW_NAME (dynamic)..."
-            cp -R "$fw" "$FRAMEWORKS_DIR/"
-            
-            xattr -cr "$FRAMEWORKS_DIR/$FW_NAME" 2>/dev/null || true
-            codesign --force --sign "$SIGN_HASH" \
-              --keychain "$CI_KEYCHAIN_PATH" \
-              --timestamp \
-              "$FRAMEWORKS_DIR/$FW_NAME"
-            
-            echo "$FW_NAME" >> "$EMBEDDED_LIST"
-          done < <(find "$XCF_DIR" -name "*.framework" -type d -print0)
-          
-          EMBEDDED=$(wc -l < "$EMBEDDED_LIST" | tr -d ' ')
-          rm -f "$EMBEDDED_LIST"
-          
-          if [ "$EMBEDDED" -gt 0 ]; then
-            echo "✅ Embedded $EMBEDDED dynamic framework(s) into app bundle"
-            echo "📦 All frameworks in app bundle:"
-            ls -1 "$FRAMEWORKS_DIR"
-          else
-            echo "ℹ️  No additional dynamic frameworks needed embedding"
-          fi
       
       - name: Export IPA
         run: |
