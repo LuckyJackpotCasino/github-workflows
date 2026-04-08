@@ -422,42 +422,34 @@ jobs:
           # Ensure CI keychain is unlocked and in search list for codesign
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Use a filesystem lock to safely modify the shared keychain search list.
-          # Without locking, concurrent builds race on read-modify-write of the list,
-          # causing keychains to disappear and errSecInternalComponent.
-          LOCKDIR="/tmp/keychain-search-list.lock"
-          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
-          CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
-          if ! echo "$CURRENT_KC" | grep -q "ci-build-${{ github.run_id }}.keychain-db"; then
-            security list-keychains -d user -s $CURRENT_KC "$CI_KEYCHAIN_PATH"
-          fi
-          rm -rf "$LOCKDIR"
-          
-          # Install Apple certificate chain into BOTH login and CI keychains.
-          # login keychain is always in the search list, so chain validation works
-          # even if another build's cleanup removes our CI keychain from the list.
+          # Install Apple certificate chain into the CI keychain.
           curl -fsSL -o /tmp/AppleRootCA.cer https://www.apple.com/appleca/AppleIncRootCertificate.cer
           curl -fsSL -o /tmp/AppleWWDRCAG3.cer https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
           curl -fsSL -o /tmp/AppleWWDRCAG6.cer https://www.apple.com/certificateauthority/AppleWWDRCAG6.cer
-          for KC in "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db; do
-            security import /tmp/AppleRootCA.cer -k "$KC" -T /usr/bin/codesign 2>/dev/null || true
-            security import /tmp/AppleWWDRCAG3.cer -k "$KC" -T /usr/bin/codesign 2>/dev/null || true
-            security import /tmp/AppleWWDRCAG6.cer -k "$KC" -T /usr/bin/codesign 2>/dev/null || true
-          done
+          security import /tmp/AppleRootCA.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
+          security import /tmp/AppleWWDRCAG3.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
+          security import /tmp/AppleWWDRCAG6.cer -k "$CI_KEYCHAIN_PATH" -T /usr/bin/codesign 2>/dev/null || true
           rm -f /tmp/AppleRootCA.cer /tmp/AppleWWDRCAG3.cer /tmp/AppleWWDRCAG6.cer
           
-          # Re-apply partition list right before archive (may get invalidated by concurrent builds)
+          # Re-apply partition list right before archive
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>&1 | head -5 || true
           
-          echo "🔐 Keychain search list:"
+          # Set search list to ONLY CI keychains (exclude login/System).
+          # The login keychain contains an expired WWDR G1 cert that poisons codesign
+          # chain evaluation. CI keychains have all the valid certs (WWDR G3/G6, Root CA).
+          # Use a filesystem lock to prevent concurrent builds from racing.
+          LOCKDIR="/tmp/keychain-search-list.lock"
+          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
+          SAVED_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          echo "SAVED_KC=$SAVED_KC" >> "$GITHUB_ENV"
+          ALL_CI_KC=$(ls ~/Library/Keychains/ci-build-*.keychain-db 2>/dev/null | tr '\n' ' ')
+          security list-keychains -d user -s $ALL_CI_KC
+          rm -rf "$LOCKDIR"
+          
+          echo "🔐 Keychain search list (CI only for archive):"
           security list-keychains -d user
           echo "🔐 Signing identities (CI keychain):"
           security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH"
-          echo "🔐 Signing identities (all keychains):"
-          security find-identity -v -p codesigning
-          echo "🔐 Certificate chain test:"
-          security find-certificate -c "Apple Worldwide" "$CI_KEYCHAIN_PATH" 2>/dev/null | grep "labl" || echo "No WWDR in CI keychain"
-          security find-certificate -c "Apple Worldwide" ~/Library/Keychains/login.keychain-db 2>/dev/null | grep "labl" || echo "No WWDR in login"
           
           # Clean DerivedData to avoid stale signing state
           rm -rf ~/Library/Developer/Xcode/DerivedData/Unity-iPhone-*
@@ -489,6 +481,13 @@ jobs:
             | tee /tmp/xcodebuild-archive.log
           
           XCODE_EXIT=${PIPESTATUS[0]}
+          
+          # Restore original keychain search list (re-add login keychain)
+          LOCKDIR="/tmp/keychain-search-list.lock"
+          while ! mkdir "$LOCKDIR" 2>/dev/null; do sleep 0.2; done
+          security list-keychains -d user -s $SAVED_KC
+          rm -rf "$LOCKDIR"
+          echo "🔐 Keychain search list restored"
           
           if [ $XCODE_EXIT -ne 0 ]; then
             echo "❌ Xcode archive failed!"
