@@ -540,7 +540,7 @@ jobs:
           fi
           echo "✅ AuthKey file found: $AUTH_KEY_PATH"
           
-          xcrun altool --upload-app \
+          API_PRIVATE_KEYS_DIR="$PRIVATE_KEYS_DIR" xcrun altool --upload-app \
             --type ios \
             --file "$IPA" \
             --apiKey ${{ env.API_KEY_ID }} \
