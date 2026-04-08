@@ -384,57 +384,54 @@ jobs:
           # UnityFramework but never creates an embed phase on Unity-iPhone.
           # Fix: copy the pod declarations into the Unity-iPhone target so
           # CocoaPods knows to embed the dynamic frameworks in the app bundle.
-          python3 << 'PYEOF'
-import re
+          python3 - << 'PYEOF'
+          import re
 
-podfile = open("Podfile").read()
+          podfile = open("Podfile").read()
 
-# --- Extract pod lines from the UnityFramework target ---
-uf_header = re.search(r"target\s+['\"]UnityFramework['\"]\s+do\s*\n", podfile)
-if not uf_header:
-    print("⚠️  No UnityFramework target found — skipping")
-    exit(0)
+          uf_header = re.search(r"target\s+['\"]UnityFramework['\"]\s+do\s*\n", podfile)
+          if not uf_header:
+              print("⚠️  No UnityFramework target found — skipping")
+              exit(0)
 
-uf_end = re.search(r"^end\b", podfile[uf_header.end():], re.MULTILINE)
-if not uf_end:
-    print("⚠️  No 'end' for UnityFramework target — skipping")
-    exit(0)
+          uf_end = re.search(r"^end\b", podfile[uf_header.end():], re.MULTILINE)
+          if not uf_end:
+              print("⚠️  No 'end' for UnityFramework target — skipping")
+              exit(0)
 
-uf_body = podfile[uf_header.end() : uf_header.end() + uf_end.start()]
-pod_lines = [l for l in uf_body.splitlines() if l.strip().startswith("pod ")]
+          uf_body = podfile[uf_header.end() : uf_header.end() + uf_end.start()]
+          pod_lines = [l for l in uf_body.splitlines() if l.strip().startswith("pod ")]
 
-if not pod_lines:
-    print("ℹ️  No pod declarations in UnityFramework target")
-    exit(0)
+          if not pod_lines:
+              print("ℹ️  No pod declarations in UnityFramework target")
+              exit(0)
 
-print(f"Found {len(pod_lines)} pod(s) in UnityFramework:")
-for l in pod_lines:
-    print(f"  {l.strip()}")
+          print(f"Found {len(pod_lines)} pod(s) in UnityFramework:")
+          for l in pod_lines:
+              print(f"  {l.strip()}")
 
-# --- Find the Unity-iPhone target ---
-ip_header = re.search(r"target\s+['\"]Unity-iPhone['\"]\s+do\s*\n", podfile)
-if not ip_header:
-    print("⚠️  No Unity-iPhone target found — skipping")
-    exit(0)
+          ip_header = re.search(r"target\s+['\"]Unity-iPhone['\"]\s+do\s*\n", podfile)
+          if not ip_header:
+              print("⚠️  No Unity-iPhone target found — skipping")
+              exit(0)
 
-ip_end = re.search(r"^end\b", podfile[ip_header.end():], re.MULTILINE)
-if not ip_end:
-    print("⚠️  No 'end' for Unity-iPhone target — skipping")
-    exit(0)
+          ip_end = re.search(r"^end\b", podfile[ip_header.end():], re.MULTILINE)
+          if not ip_end:
+              print("⚠️  No 'end' for Unity-iPhone target — skipping")
+              exit(0)
 
-ip_body = podfile[ip_header.end() : ip_header.end() + ip_end.start()]
-if any("pod " in l for l in ip_body.splitlines()):
-    print("ℹ️  Unity-iPhone already has pod declarations — skipping")
-    exit(0)
+          ip_body = podfile[ip_header.end() : ip_header.end() + ip_end.start()]
+          if any("pod " in l for l in ip_body.splitlines()):
+              print("ℹ️  Unity-iPhone already has pod declarations — skipping")
+              exit(0)
 
-# --- Insert the pod declarations just before Unity-iPhone's 'end' ---
-insert_at = ip_header.end() + ip_end.start()
-pod_block = "\n".join("  " + l.strip() for l in pod_lines) + "\n"
-new_podfile = podfile[:insert_at] + pod_block + podfile[insert_at:]
+          insert_at = ip_header.end() + ip_end.start()
+          pod_block = "\n".join("  " + l.strip() for l in pod_lines) + "\n"
+          new_podfile = podfile[:insert_at] + pod_block + podfile[insert_at:]
 
-open("Podfile", "w").write(new_podfile)
-print(f"✅ Copied {len(pod_lines)} pod declarations into Unity-iPhone target")
-PYEOF
+          open("Podfile", "w").write(new_podfile)
+          print(f"✅ Copied {len(pod_lines)} pod declarations into Unity-iPhone target")
+          PYEOF
           
           echo ""
           echo "📋 Podfile after fix:"
