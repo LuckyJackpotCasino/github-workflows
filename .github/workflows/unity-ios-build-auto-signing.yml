@@ -523,8 +523,11 @@ jobs:
           # Ensure CI keychain is accessible for codesigning embedded frameworks
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH" 2>/dev/null || true
           
+          # Use the certificate SHA-1 hash to avoid "ambiguous" errors when
+          # multiple copies of the same identity exist in the keychain.
+          SIGN_HASH=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" | grep "Apple Distribution" | head -1 | awk '{print $2}')
           SIGN_IDENTITY=$(security find-identity -v -p codesigning "$CI_KEYCHAIN_PATH" | grep "Apple Distribution" | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          echo "🔏 Signing identity: $SIGN_IDENTITY"
+          echo "🔏 Signing identity: $SIGN_IDENTITY ($SIGN_HASH)"
           
           EMBEDDED_LIST="/tmp/embedded-frameworks-$$.txt"
           > "$EMBEDDED_LIST"
@@ -551,7 +554,7 @@ jobs:
             cp -R "$fw" "$FRAMEWORKS_DIR/"
             
             xattr -cr "$FRAMEWORKS_DIR/$FW_NAME" 2>/dev/null || true
-            codesign --force --sign "$SIGN_IDENTITY" \
+            codesign --force --sign "$SIGN_HASH" \
               --keychain "$CI_KEYCHAIN_PATH" \
               --timestamp \
               "$FRAMEWORKS_DIR/$FW_NAME"
