@@ -217,12 +217,13 @@ jobs:
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Search list: CI keychain + login only.
+          # APPEND our CI keychain to the search list (never replace other builds' keychains).
           # Deliberately EXCLUDING System.keychain because it contains an expired WWDR G1
-          # cert that poisons certificate chain evaluation. The system trust roots
-          # (SystemRootCertificates.keychain) are always consulted regardless of search list.
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
-          security default-keychain -s "$CI_KEYCHAIN_PATH"
+          # cert that poisons certificate chain evaluation.
+          CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          if ! echo "$CURRENT_KC" | grep -q "ci-build-${{ github.run_id }}.keychain-db"; then
+            security list-keychains -d user -s $CURRENT_KC "$CI_KEYCHAIN_PATH"
+          fi
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
@@ -418,7 +419,10 @@ jobs:
           
           # Ensure CI keychain is unlocked and in search list for codesign
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
-          security list-keychains -d user -s "$CI_KEYCHAIN_PATH" ~/Library/Keychains/login.keychain-db
+          CURRENT_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          if ! echo "$CURRENT_KC" | grep -q "ci-build-${{ github.run_id }}.keychain-db"; then
+            security list-keychains -d user -s $CURRENT_KC "$CI_KEYCHAIN_PATH"
+          fi
           
           # Install Apple certificate chain into CI keychain for codesign trust validation.
           # Without these, codesign fails with errSecInternalComponent.
