@@ -537,6 +537,7 @@ jobs:
             -configuration Release \
             -archivePath $GITHUB_WORKSPACE/Unity-iPhone.xcarchive \
             -derivedDataPath "$DERIVED_DATA_PATH" \
+            -jobs 1 \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
             OTHER_CODE_SIGN_FLAGS="--keychain $CI_KEYCHAIN_PATH" \
