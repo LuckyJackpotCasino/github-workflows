@@ -87,10 +87,23 @@ jobs:
           fi
           
           echo "✅ Repository ready (Library folder preserved for speed)"
+          
+          # Detect Unity version change and clean Library if needed
+          EXPECTED_UNITY="${{ inputs.unity_version }}"
+          CACHED_UNITY=""
+          if [ -f "Library/.unity_version_cache" ]; then
+            CACHED_UNITY=$(cat Library/.unity_version_cache)
+          fi
+          if [ "$CACHED_UNITY" != "$EXPECTED_UNITY" ]; then
+            echo "⚠️  Unity version changed ($CACHED_UNITY -> $EXPECTED_UNITY) - clearing Library cache..."
+            rm -rf Library/
+            mkdir -p Library
+            echo "$EXPECTED_UNITY" > Library/.unity_version_cache
+            echo "🗑️  Library cleared - Unity will reimport assets (this build will be slower)"
+          else
+            echo "✅ Library cache matches Unity $EXPECTED_UNITY"
+          fi
 
-      # Note: Unity lock file cleanup removed - not needed with persistent workspaces
-      # and causes issues with parallel builds on multiple runners
-      
       # No cache needed - Library folder stays on disk between builds!
       
       - name: Build iOS with Unity
@@ -132,6 +145,14 @@ jobs:
           tail -100 "$UNITY_LOG"
           echo "═══════════════════════════════════════════════════════════"
           echo ""
+          
+          # Unity can exit 0 even when the build fails internally
+          if grep -q "Build Finished, Result: Failure" "$UNITY_LOG" 2>/dev/null; then
+            echo "❌ Unity build reported internal failure!"
+            echo "Compilation errors:"
+            grep "error CS" "$UNITY_LOG" | head -10
+            exit 1
+          fi
           
           if [ $UNITY_EXIT -ne 0 ]; then
             echo "❌ Unity build failed with exit code: $UNITY_EXIT"

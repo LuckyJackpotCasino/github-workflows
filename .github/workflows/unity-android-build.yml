@@ -69,6 +69,22 @@ jobs:
           fi
           
           echo "✅ Repository ready (Library folder preserved for speed)"
+          
+          # Detect Unity version change and clean Library if needed
+          EXPECTED_UNITY="${{ inputs.unity_version }}"
+          CACHED_UNITY=""
+          if [ -f "Library/.unity_version_cache" ]; then
+            CACHED_UNITY=$(cat Library/.unity_version_cache)
+          fi
+          if [ "$CACHED_UNITY" != "$EXPECTED_UNITY" ]; then
+            echo "⚠️  Unity version changed ($CACHED_UNITY -> $EXPECTED_UNITY) - clearing Library cache..."
+            rm -rf Library/
+            mkdir -p Library
+            echo "$EXPECTED_UNITY" > Library/.unity_version_cache
+            echo "🗑️  Library cleared - Unity will reimport assets (this build will be slower)"
+          else
+            echo "✅ Library cache matches Unity $EXPECTED_UNITY"
+          fi
       
       # No cache needed - Library folder stays on disk between builds!
       
@@ -120,6 +136,25 @@ jobs:
             -projectPath "$(pwd)" \
             -executeMethod ${{ inputs.build_method }} \
             -logFile "$UNITY_LOG"
+          
+          UNITY_EXIT=$?
+          
+          # Unity can exit 0 even when the build fails internally
+          if grep -q "Build Finished, Result: Failure" "$UNITY_LOG" 2>/dev/null; then
+            echo "❌ Unity build reported internal failure!"
+            echo "Last 30 lines of log:"
+            tail -30 "$UNITY_LOG"
+            echo ""
+            echo "Compilation errors:"
+            grep "error CS" "$UNITY_LOG" | head -10
+            exit 1
+          fi
+          
+          if [ $UNITY_EXIT -ne 0 ]; then
+            echo "❌ Unity build failed with exit code: $UNITY_EXIT"
+            tail -30 "$UNITY_LOG"
+            exit $UNITY_EXIT
+          fi
           
           echo "✅ Unity build complete: ${{ steps.game_name.outputs.game_name }}${{ steps.version.outputs.version_code }}.${{ inputs.build_type }}"
         env:
