@@ -379,24 +379,44 @@ jobs:
           echo ""
           echo "---"
           
-          # EDM4U puts all pods under the UnityFramework target only.
-          # Facebook SDK ships as dynamic XCFrameworks — CocoaPods links them to
-          # UnityFramework but never creates an embed phase on Unity-iPhone.
-          # Fix: copy the pod declarations into the Unity-iPhone target so
-          # CocoaPods knows to embed the dynamic frameworks in the app bundle.
+          # EDM4U puts all pods under the UnityFramework target only and uses
+          # static linkage.  Facebook SDK ships as dynamic XCFrameworks that
+          # must be embedded in the app bundle.
+          # Fix:
+          #   1. Force dynamic linkage with use_frameworks! (replaces EDM4U's
+          #      :linkage => :static so CocoaPods builds dynamic frameworks).
+          #   2. Copy pod declarations into the Unity-iPhone target so
+          #      CocoaPods creates the "Embed Frameworks" build phase.
           python3 - << 'PYEOF'
           import re
 
           podfile = open("Podfile").read()
 
+          # --- Step 1: ensure use_frameworks! (dynamic) ---
+          # EDM4U generates  use_frameworks! :linkage => :static
+          # Replace it with plain  use_frameworks!  so pods are dynamic.
+          podfile = re.sub(
+              r"use_frameworks!\s*:linkage\s*=>\s*:static",
+              "use_frameworks!",
+              podfile,
+          )
+          if "use_frameworks!" not in podfile:
+              podfile = "use_frameworks!\n" + podfile
+              print("Added use_frameworks! to Podfile")
+          else:
+              print("✅ use_frameworks! present (dynamic linkage)")
+
+          # --- Step 2: copy pods into Unity-iPhone target ---
           uf_header = re.search(r"target\s+['\"]UnityFramework['\"]\s+do\s*\n", podfile)
           if not uf_header:
               print("⚠️  No UnityFramework target found — skipping")
+              open("Podfile", "w").write(podfile)
               exit(0)
 
           uf_end = re.search(r"^end\b", podfile[uf_header.end():], re.MULTILINE)
           if not uf_end:
               print("⚠️  No 'end' for UnityFramework target — skipping")
+              open("Podfile", "w").write(podfile)
               exit(0)
 
           uf_body = podfile[uf_header.end() : uf_header.end() + uf_end.start()]
@@ -404,6 +424,7 @@ jobs:
 
           if not pod_lines:
               print("ℹ️  No pod declarations in UnityFramework target")
+              open("Podfile", "w").write(podfile)
               exit(0)
 
           print(f"Found {len(pod_lines)} pod(s) in UnityFramework:")
@@ -413,16 +434,19 @@ jobs:
           ip_header = re.search(r"target\s+['\"]Unity-iPhone['\"]\s+do\s*\n", podfile)
           if not ip_header:
               print("⚠️  No Unity-iPhone target found — skipping")
+              open("Podfile", "w").write(podfile)
               exit(0)
 
           ip_end = re.search(r"^end\b", podfile[ip_header.end():], re.MULTILINE)
           if not ip_end:
               print("⚠️  No 'end' for Unity-iPhone target — skipping")
+              open("Podfile", "w").write(podfile)
               exit(0)
 
           ip_body = podfile[ip_header.end() : ip_header.end() + ip_end.start()]
           if any("pod " in l for l in ip_body.splitlines()):
               print("ℹ️  Unity-iPhone already has pod declarations — skipping")
+              open("Podfile", "w").write(podfile)
               exit(0)
 
           insert_at = ip_header.end() + ip_end.start()
