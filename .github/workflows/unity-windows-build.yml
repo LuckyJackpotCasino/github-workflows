@@ -6,7 +6,7 @@ on:
       unity_version:
         required: true
         type: string
-        description: 'Unity version to use (e.g., 6000.2.9f1)'
+        description: 'Unity version to use (e.g., 6000.4.1f1)'
       build_method:
         required: true
         type: string
