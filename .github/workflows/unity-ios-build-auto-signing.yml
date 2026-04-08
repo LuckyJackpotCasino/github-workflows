@@ -373,6 +373,7 @@ jobs:
           
           $POD deintegrate || true
           rm -rf Pods Podfile.lock
+          $POD cache clean --all 2>/dev/null || true
           
           echo "📋 EDM4U-generated Podfile:"
           cat Podfile

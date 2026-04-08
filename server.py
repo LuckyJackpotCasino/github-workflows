@@ -368,19 +368,15 @@ def get_runner_status():
                                                 # Get valid app names
                                                 app_names = [app['name'] for app in apps]
                                                 
-                                                for line in lines:
-                                                    # Look for repository info in logs - be more specific
+                                                for line in reversed(lines):
                                                     if 'LuckyJackpotCasino/' in line:
-                                                        # Extract repo name from URLs like "LuckyJackpotCasino/kenocasino"
                                                         import re
-                                                        # Match only after LuckyJackpotCasino/ and before space, slash, or end
                                                         match = re.search(r'LuckyJackpotCasino/([a-z0-9\-]+)(?:\s|/|$|\.git)', line, re.IGNORECASE)
                                                         if match:
                                                             candidate = match.group(1)
-                                                            # Validate it's a real app name from our apps list
                                                             if candidate in app_names:
                                                                 project_name = candidate
-                                                                print(f"[DEBUG] Found project in log: {project_name}", flush=True)
+                                                                print(f"[DEBUG] Found project in log (most recent): {project_name}", flush=True)
                                                                 break
                                                 
                                                 # project_name is set; inner loop already exited via break
