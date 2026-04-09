@@ -208,25 +208,22 @@ jobs:
           CI_KEYCHAIN_PATH="$HOME/Library/Keychains/ci-build-${{ github.run_id }}.keychain-db"
           CI_KEYCHAIN_PASSWORD="ci-build-$(openssl rand -hex 12)"
           
-          # Clean up stale CI keychains from previous failed builds.
-          # These can corrupt the keychain search list and cause errSecInternalComponent.
-          for kc in ~/Library/Keychains/ci-build-*.keychain-db; do
-            [ -f "$kc" ] || continue
-            echo "🗑️  Removing stale keychain: $(basename "$kc")"
-            security delete-keychain "$kc" 2>/dev/null || rm -f "$kc"
-          done
+          # Only remove THIS build's keychain if it exists from a previous attempt.
+          # Do NOT delete other ci-build-* keychains — they belong to concurrent builds.
+          if [ -f "$CI_KEYCHAIN_PATH" ]; then
+            echo "🗑️  Removing previous keychain for this run: $(basename "$CI_KEYCHAIN_PATH")"
+            security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || rm -f "$CI_KEYCHAIN_PATH"
+          fi
           
           # Create fresh keychain for this build
           security create-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$CI_KEYCHAIN_PATH"
           security unlock-keychain -p "$CI_KEYCHAIN_PASSWORD" "$CI_KEYCHAIN_PATH"
           
-          # Set the keychain search list: login + our CI keychain.
-          # Always include login.keychain-db to ensure the certificate trust
-          # chain can be resolved (system roots, WWDR intermediates).
-          security list-keychains -d user -s \
-            "$HOME/Library/Keychains/login.keychain-db" \
-            "$CI_KEYCHAIN_PATH"
+          # APPEND our keychain to the existing search list (preserving concurrent builds).
+          # Filter out any dead keychains and always ensure login is present.
+          EXISTING_KC=$(security list-keychains -d user | tr -d '"' | tr '\n' ' ')
+          security list-keychains -d user -s $EXISTING_KC "$CI_KEYCHAIN_PATH"
           
           echo "CI_KEYCHAIN_PATH=$CI_KEYCHAIN_PATH" >> "$GITHUB_ENV"
           echo "CI_KEYCHAIN_PASSWORD=$CI_KEYCHAIN_PASSWORD" >> "$GITHUB_ENV"
@@ -634,12 +631,17 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Delete this run's CI keychain and restore login-only search list.
+          # Delete only THIS run's CI keychain; rebuild the search list without it
+          # but preserve other concurrent builds' keychains.
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
             security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || rm -f "$CI_KEYCHAIN_PATH"
             echo "✅ Removed CI keychain: $CI_KEYCHAIN_PATH"
           fi
-          security list-keychains -d user -s "$HOME/Library/Keychains/login.keychain-db"
+          REMAINING_KC=$(security list-keychains -d user | tr -d '"' | grep -v "ci-build-${{ github.run_id }}" | tr '\n' ' ')
+          if [ -z "$REMAINING_KC" ]; then
+            REMAINING_KC="$HOME/Library/Keychains/login.keychain-db"
+          fi
+          security list-keychains -d user -s $REMAINING_KC
           
           # Clean up files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
