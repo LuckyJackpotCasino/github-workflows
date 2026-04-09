@@ -209,10 +209,10 @@ jobs:
           CI_KEYCHAIN_PASSWORD="ci-build-$(openssl rand -hex 12)"
           
           # Only remove THIS build's keychain if it exists from a previous attempt.
-          # Do NOT delete other ci-build-* keychains — they belong to concurrent builds.
+          # Use rm instead of security delete-keychain to avoid disrupting concurrent builds.
           if [ -f "$CI_KEYCHAIN_PATH" ]; then
             echo "🗑️  Removing previous keychain for this run: $(basename "$CI_KEYCHAIN_PATH")"
-            security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || rm -f "$CI_KEYCHAIN_PATH"
+            rm -f "$CI_KEYCHAIN_PATH"
           fi
           
           # Create fresh keychain for this build
@@ -631,17 +631,13 @@ jobs:
             security default-keychain -s ~/Library/Keychains/login.keychain-db || true
           fi
           
-          # Delete only THIS run's CI keychain; rebuild the search list without it
-          # but preserve other concurrent builds' keychains.
+          # Remove THIS run's CI keychain file directly (NOT security delete-keychain).
+          # security delete-keychain modifies global keychain state and can cause
+          # errSecInternalComponent in concurrent builds' codesign operations.
           if [ -n "$CI_KEYCHAIN_PATH" ] && [ -f "$CI_KEYCHAIN_PATH" ]; then
-            security delete-keychain "$CI_KEYCHAIN_PATH" 2>/dev/null || rm -f "$CI_KEYCHAIN_PATH"
-            echo "✅ Removed CI keychain: $CI_KEYCHAIN_PATH"
+            rm -f "$CI_KEYCHAIN_PATH"
+            echo "✅ Removed CI keychain file: $(basename $CI_KEYCHAIN_PATH)"
           fi
-          REMAINING_KC=$(security list-keychains -d user | tr -d '"' | grep -v "ci-build-${{ github.run_id }}" | tr '\n' ' ')
-          if [ -z "$REMAINING_KC" ]; then
-            REMAINING_KC="$HOME/Library/Keychains/login.keychain-db"
-          fi
-          security list-keychains -d user -s $REMAINING_KC
           
           # Clean up files
           rm -rf *_BackUpThisFolder_ButDontShipItWithYourGame
