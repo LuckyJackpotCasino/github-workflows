@@ -193,6 +193,24 @@ jobs:
           /usr/libexec/PlistBuddy -c "Set :ITSAppUsesNonExemptEncryption false" Info.plist
           echo "✅ Export compliance added (None of the algorithms mentioned)"
       
+      - name: Verify GADApplicationIdentifier in Info.plist
+        working-directory: IosProjectFolder
+        run: |
+          GAD_ID=$(/usr/libexec/PlistBuddy -c "Print :GADApplicationIdentifier" Info.plist 2>/dev/null || echo "")
+          if [ -z "$GAD_ID" ]; then
+            echo "⚠️  GADApplicationIdentifier missing from Info.plist — injecting from GoogleMobileAdsSettings.asset"
+            APP_ID=$(grep "adMobIOSAppId:" ../Assets/GoogleMobileAds/Resources/GoogleMobileAdsSettings.asset | awk '{print $2}')
+            if [ -n "$APP_ID" ]; then
+              /usr/libexec/PlistBuddy -c "Add :GADApplicationIdentifier string $APP_ID" Info.plist
+              echo "✅ Set GADApplicationIdentifier: $APP_ID"
+            else
+              echo "❌ Could not find adMobIOSAppId in GoogleMobileAdsSettings.asset!"
+              exit 1
+            fi
+          else
+            echo "✅ GADApplicationIdentifier already present: $GAD_ID"
+          fi
+      
       - name: Setup Signing with Fastlane Match
         env:
           MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
