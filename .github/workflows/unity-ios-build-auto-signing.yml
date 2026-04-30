@@ -354,16 +354,35 @@ jobs:
           
           # Capture the installed profile UUID + name for later xcodebuild signing settings.
           # (Fastlane prints these but doesn't export them to subsequent steps.)
-          # Check both possible locations for provisioning profiles
-          PROFILE_PATH=$(ls -t "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/"*.mobileprovision 2>/dev/null | head -1)
+          # Find the provisioning profile that matches THIS app's bundle ID
+          # (avoids race conditions when multiple builds run on the same runner)
+          BUNDLE_ID="${{ inputs.app_bundle_id }}"
+          PROFILE_PATH=""
+          
+          for SEARCH_DIR in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+            if [ -d "$SEARCH_DIR" ]; then
+              for PP in "$SEARCH_DIR"/*.mobileprovision; do
+                [ -f "$PP" ] || continue
+                PP_CONTENT=$(security cms -D -i "$PP" 2>/dev/null) || continue
+                PP_BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /dev/stdin <<< "$PP_CONTENT" 2>/dev/null)
+                # application-identifier includes team prefix: "D3H7LWSJL6.com.example.app"
+                if echo "$PP_BUNDLE" | grep -q "$BUNDLE_ID"; then
+                  PROFILE_PATH="$PP"
+                  break 2
+                fi
+              done
+            fi
+          done
+          
           if [ -z "$PROFILE_PATH" ]; then
-            PROFILE_PATH=$(ls -t "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision 2>/dev/null | head -1)
-          fi
-          if [ -z "$PROFILE_PATH" ]; then
-            echo "❌ No provisioning profile found after match!"
+            echo "❌ No provisioning profile found for bundle ID: $BUNDLE_ID"
             echo "Checked locations:"
             echo "  - $HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/"
             echo "  - $HOME/Library/MobileDevice/Provisioning Profiles/"
+            echo "Available profiles:"
+            for SEARCH_DIR in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+              ls -la "$SEARCH_DIR"/*.mobileprovision 2>/dev/null || true
+            done
             exit 1
           fi
           
@@ -556,6 +575,7 @@ jobs:
             -jobs 1 \
             DEVELOPMENT_TEAM=${{ env.TEAM_ID }} \
             IPHONEOS_DEPLOYMENT_TARGET=15.0 \
+            SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             OTHER_CODE_SIGN_FLAGS="--keychain $CI_KEYCHAIN_PATH" \
             | tee /tmp/xcodebuild-archive.log
           
