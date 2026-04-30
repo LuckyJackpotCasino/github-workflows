@@ -197,7 +197,7 @@ jobs:
       
       - name: Upload Build Artifacts
         if: inputs.upload_artifact == true
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.artifact_name }}
           path: ${{ inputs.build_type == 'apk' && '*.apk' || '*.aab' }}
@@ -207,7 +207,7 @@ jobs:
       - name: Upload Unity Log
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.artifact_name }}-unity-log
           path: /tmp/unity-build-${{ github.run_id }}-${{ inputs.build_type }}-${{ github.run_attempt }}.log
