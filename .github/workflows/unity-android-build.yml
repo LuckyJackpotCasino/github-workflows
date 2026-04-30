@@ -206,12 +206,13 @@ jobs:
       
       - name: Upload Unity Log
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}-unity-log
           path: /tmp/unity-build-${{ github.run_id }}-${{ inputs.build_type }}-${{ github.run_attempt }}.log
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 3
       
       - name: Cleanup Build Artifacts
         if: always()
