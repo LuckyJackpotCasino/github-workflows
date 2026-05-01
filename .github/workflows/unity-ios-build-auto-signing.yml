@@ -531,7 +531,8 @@ jobs:
           xcodebuild clean \
             -workspace Unity-iPhone.xcworkspace \
             -scheme Unity-iPhone \
-            -configuration Release
+            -configuration Release \
+            -destination 'generic/platform=iOS'
           
           echo "✅ Clean complete"
       
