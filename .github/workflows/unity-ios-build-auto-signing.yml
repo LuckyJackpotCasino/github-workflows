@@ -427,6 +427,15 @@ jobs:
 
           podfile = open("Podfile").read()
 
+          # --- Step 0: use CDN source instead of git repo ---
+          # Some projects use source 'https://github.com/CocoaPods/Specs'
+          # which creates a duplicate repo alongside the CDN trunk repo,
+          # causing "Found multiple specifications" errors.
+          podfile = podfile.replace(
+              "source 'https://github.com/CocoaPods/Specs'",
+              "source 'https://cdn.cocoapods.org/'"
+          )
+
           # --- Step 1: ensure use_frameworks! (dynamic) ---
           # EDM4U generates  use_frameworks! :linkage => :static
           # Replace it with plain  use_frameworks!  so pods are dynamic.
@@ -498,8 +507,8 @@ jobs:
           echo ""
           echo "---"
           
-          # Ensure CocoaPods repo is up to date
-          $POD repo update 2>&1 | tail -5 || true
+          # Remove stale git-based CocoaPods repo if it exists (CDN trunk is preferred)
+          rm -rf ~/.cocoapods/repos/cocoapods 2>/dev/null || true
           
           echo "🔧 Running pod install..."
           $POD install --verbose 2>&1 | tee /tmp/pod-install-${{ github.run_id }}.log | tail -60
