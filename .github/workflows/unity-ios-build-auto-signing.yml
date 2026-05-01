@@ -498,7 +498,25 @@ jobs:
           echo ""
           echo "---"
           
-          $POD install --verbose 2>&1 | tail -40
+          # Ensure CocoaPods repo is up to date
+          $POD repo update 2>&1 | tail -5 || true
+          
+          echo "🔧 Running pod install..."
+          $POD install --verbose 2>&1 | tee /tmp/pod-install-${{ github.run_id }}.log | tail -60
+          POD_EXIT=${PIPESTATUS[0]}
+          
+          if [ $POD_EXIT -ne 0 ]; then
+            echo "❌ pod install failed with exit code $POD_EXIT"
+            echo "Full log:"
+            cat /tmp/pod-install-${{ github.run_id }}.log
+            exit $POD_EXIT
+          fi
+          
+          # Verify pods were actually installed
+          if [ ! -d "Pods/FBSDKCoreKit" ] && [ ! -d "Pods/FBSDKCoreKit.xcframework" ]; then
+            echo "⚠️  FBSDKCoreKit not found in Pods directory after install"
+            ls -la Pods/ | head -20
+          fi
           
           echo "✅ CocoaPods dependencies installed"
       
@@ -527,6 +545,24 @@ jobs:
         run: |
           echo "🧹 Deep cleaning Xcode build..."
           rm -rf build DerivedData
+          
+          # Clear shared module cache to prevent cross-build contamination
+          rm -rf ~/Library/Developer/Xcode/DerivedData/ModuleCache.noindex 2>/dev/null || true
+          
+          # Verify Pods directory exists and has frameworks
+          if [ -d "Pods" ]; then
+            echo "📦 Pods directory contents:"
+            ls -la Pods/ | head -20
+            POD_FRAMEWORKS=$(find Pods -name "*.framework" -maxdepth 3 2>/dev/null | head -5)
+            if [ -n "$POD_FRAMEWORKS" ]; then
+              echo "✅ Pod frameworks found:"
+              echo "$POD_FRAMEWORKS"
+            else
+              echo "⚠️  No pod frameworks found in Pods directory"
+            fi
+          else
+            echo "❌ Pods directory not found!"
+          fi
           
           xcodebuild clean \
             -workspace Unity-iPhone.xcworkspace \
